@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Images + Audio to Video Converter</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f4f4f4;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #555;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    input[type="file"], input[type="number"], select {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    input[type="file"]::-webkit-file-upload-button {
+      padding: 10px 15px;
+      border: none;
+      background-color: #5cb85c;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-right: 10px;
+    }
+    input[type="file"]::-webkit-file-upload-button:hover {
+      background-color: #4cae4c;
+    }
+    button {
+      display: block;
+      width: 100%;
+      padding: 12px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+      margin-top: 20px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    #progress-container, #log-container, #output-container {
+      margin-top: 25px;
+      padding: 15px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    #progress-bar-container {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    #progressBar {
+      width: 0%;
+      height: 20px;
+      background-color: #4caf50;
+      text-align: center;
+      line-height: 20px;
+      color: white;
+      font-size: 12px;
+      transition: width 0.2s ease-out;
+    }
+    #progress-text {
+      font-size: 0.9em;
+      color: #666;
+      text-align: center;
+    }
+    #log, #output {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.9em;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #output-video {
+      display: block;
+      max-width: 100%;
+      margin-top: 15px;
+      border-radius: 4px;
+    }
+    .output-section h2 {
+      margin-bottom: 10px;
+      font-size: 1.2em;
+      color: #333;
+      text-align: left;
+    }
+    a.download-link {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 15px;
+      background-color: #28a745;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      transition: background-color 0.3s ease;
+    }
+    a.download-link:hover {
+      background-color: #218838;
+    }
+    .file-info {
+      font-size: 0.8em;
+      color: #777;
+      margin-top: -10px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Images + Audio to Video Converter</h1>
+    <p>This tool combines sequentially named image files (e.g., img001.png, img002.png) and an audio file into a video directly in your browser.</p>
+
+    <label for="imageFiles">Select Image Files (must be sequentially named, e.g., img001.png, img002.png...):</label>
+    <input type="file" id="imageFiles" multiple accept="image/*">
+    <div class="file-info">Select all image files for the sequence. They will be sorted alphabetically. Ensure consistent naming and padding (e.g., 001, 002 vs 1, 2).</div>
+
+    <label for="audioFile">Select Audio File:</label>
+    <input type="file" id="audioFile" accept="audio/*">
+
+    <label for="imageDuration">Image Duration (seconds):</label>
+    <input type="number" id="imageDuration" value="5" min="0.1" step="0.1">
+
+    <label for="outputFormat">Output Format:</label>
+    <select id="outputFormat">
+      <option value="mp4">MP4 (H.264 + AAC)</option>
+      <option value="mov">MOV (H.264 + AAC)</option>
+    </select>
+
+    <button id="startButton" disabled>Load FFmpeg & Start</button>
+
+    <div id="progress-container" style="display: none;">
+      <h2>Progress</h2>
+      <div id="progress-bar-container">
+        <div id="progressBar">0%</div>
+      </div>
+      <div id="progress-text">Processing...</div>
+    </div>
+
+    <div id="log-container" style="display: none;">
+      <h2>FFmpeg Log</h2>
+      <pre id="log"></pre>
+    </div>
+
+    <div id="output-container" class="output-section" style="display: none;">
+      <h2>Output</h2>
+      <video id="output-video" controls style="display: none;"></video>
+      <div id="output-message"></div>
+      <a id="downloadLink" class="download-link" style="display: none;" download="output.mp4">Download Video</a>
+    </div>
+  </div>
+
+  <script src="ffmpeg.min.js"></script>
+  <script>
+    const { FFmpeg } = FFmpegWASM; // Assuming ffmpeg.min.js loaded FFmpegWASM globally
+    let ffmpegInstance = null;
+
+    const imageInput = document.getElementById('imageFiles');
+    const audioInput = document.getElementById('audioFile');
+    const imageDurationInput = document.getElementById('imageDuration');
+    const outputFormatSelect = document.getElementById('outputFormat');
+    const startButton = document.getElementById('startButton');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progress-text');
+    const logElement = document.getElementById('log');
+    const outputVideo = document.getElementById('output-video');
+    const outputMessage = document.getElementById('output-message');
+    const downloadLink = document.getElementById('downloadLink');
+    const progressContainer = document.getElementById('progress-container');
+    const logContainer = document.getElementById('log-container');
+    const outputContainer = document.getElementById('output-container');
+
+    let totalDuration = 0; // For progress calculation
+
+    async function loadFFmpeg() {
+      if (ffmpegInstance) return true; // Already loaded
+
+      startButton.textContent = 'Loading FFmpeg Core...';
+      startButton.disabled = true;
+      console.log('Creating FFmpeg instance...');
+
+      try {
+        ffmpegInstance = new FFmpeg();
+
+        // --- Event Listeners ---
+        ffmpegInstance.on('log', ({ type, message }) => {
+          console.log(`[${type}] ${message}`);
+          logElement.textContent += message + "\n";
+          logElement.scrollTop = logElement.scrollHeight;
+          logContainer.style.display = 'block';
+
+          // Parse duration from log for progress calculation if available
+          const durationMatch = message.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+          if (durationMatch) {
+            const hours = parseInt(durationMatch[1], 10);
+            const minutes = parseInt(durationMatch[2], 10);
+            const seconds = parseInt(durationMatch[3], 10);
+            const centiseconds = parseInt(durationMatch[4], 10);
+            totalDuration = (hours * 3600 + minutes * 60 + seconds + centiseconds / 100) * 1000;
+            console.log(`Parsed Total Duration: ${totalDuration} ms`);
+          }
+        });
+
+        ffmpegInstance.on('progress', ({ progress, time }) => {
+          let percentage = 0;
+          if (totalDuration > 0 && time) {
+            percentage = Math.min(100, Math.max(0, (time / totalDuration) * 100));
+          } else if (progress) {
+            percentage = Math.min(100, Math.max(0, progress * 100));
+          }
+          if (!isNaN(percentage)) {
+            progressBar.style.width = percentage.toFixed(1) + '%';
+            progressBar.textContent = percentage.toFixed(1) + '%';
+            progressText.textContent = `Processing... (${percentage.toFixed(1)}%)`;
+            progressContainer.style.display = 'block';
+          } else {
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            progressText.textContent = 'Processing...';
+            progressContainer.style.display = 'block';
+          }
+        });
+
+        // --- Load Core ---
+        await ffmpegInstance.load({
+          coreURL: './ffmpeg-core.js',
+          wasmURL: './ffmpeg-core.wasm'
+        });
+
+        console.log('FFmpeg core loaded successfully.');
+        startButton.textContent = 'Start Conversion';
+        startButton.disabled = false;
+        return true;
+      } catch (error) {
+        console.error('Error loading FFmpeg:', error);
+        startButton.textContent = 'Error Loading FFmpeg';
+        startButton.disabled = true;
+        logElement.textContent += `\n--- ERROR LOADING FFMPEG ---\n${error}\n---------------------------\n`;
+        logContainer.style.display = 'block';
+        return false;
+      }
+    }
+
+    async function convertFiles() {
+      if (!ffmpegInstance || !ffmpegInstance.loaded) {
+        alert('FFmpeg is not loaded. Please wait or reload.');
+        return;
+      }
+      if (imageInput.files.length === 0) {
+        alert('Please select image files.');
+        return;
+      }
+      if (audioInput.files.length !== 1) {
+        alert('Please select exactly one audio file.');
+        return;
+      }
+
+      startButton.disabled = true;
+      startButton.textContent = 'Processing...';
+      progressContainer.style.display = 'block';
+      logContainer.style.display = 'block';
+      outputContainer.style.display = 'none';
+      outputVideo.style.display = 'none';
+      outputVideo.src = '';
+      if (downloadLink.href) {
+        URL.revokeObjectURL(downloadLink.href);
+      }
+      downloadLink.href = '#';
+      downloadLink.style.display = 'none';
+      outputMessage.textContent = '';
+      logElement.textContent = '';
+      progressBar.style.width = '0%';
+      progressBar.textContent = '0%';
+      progressText.textContent = 'Preparing files...';
+      totalDuration = 0;
+
+      try {
+        // --- Write files to FFmpeg virtual filesystem ---
+        console.log('Writing files to virtual filesystem...');
+        progressText.textContent = 'Uploading images...';
+
+        // Sort image files alphabetically
+        const imageFiles = Array.from(imageInput.files).sort((a, b) => a.name.localeCompare(b.name));
+
+        if (imageFiles.length === 0) {
+          throw new Error("No image files selected or sorted correctly.");
+        }
+
+        const firstImageName = imageFiles[0].name;
+        const nameParts = firstImageName.match(/^(.*?)(\d+)(\.\w+)$/);
+        let inputPattern = '';
+        let imageExtension = '.png';
+
+        if (nameParts) {
+          const prefix = nameParts[1];
+          const numberString = nameParts[2];
+          const suffix = nameParts[3];
+          const padding = numberString.length;
+          inputPattern = `${prefix}%0${padding}d${suffix}`;
+          imageExtension = suffix;
+          console.log(`Detected image pattern: ${inputPattern}`);
+        } else {
+          console.warn("Could not detect standard image sequence naming. Using fallback pattern.");
+          inputPattern = 'image-%d' + (firstImageName.includes('.') ? firstImageName.substring(firstImageName.lastIndexOf('.')) : '.png');
+          imageExtension = inputPattern.substring(inputPattern.lastIndexOf('.'));
+        }
+
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          let targetFilename = file.name;
+          if (nameParts) {
+            const prefix = nameParts[1];
+            const suffix = nameParts[3];
+            const padding = nameParts[2].length;
+            targetFilename = `${prefix}${(i + 1).toString().padStart(padding, '0')}${suffix}`;
+          } else {
+            targetFilename = `image-${i + 1}${imageExtension}`;
+          }
+          console.log(`Writing image ${i + 1}/${imageFiles.length}: ${file.name} as ${targetFilename}`);
+          const data = await readFileAsUint8Array(file);
+          await ffmpegInstance.writeFile(targetFilename, data);
+        }
+
+        progressText.textContent = 'Uploading audio...';
+        const audioFile = audioInput.files[0];
+        const audioFilename = 'input_audio' + (audioFile.name.includes('.') ? audioFile.name.substring(audioFile.name.lastIndexOf('.')) : '.mp3');
+        console.log(`Writing audio: ${audioFile.name} as ${audioFilename}`);
+        const audioData = await readFileAsUint8Array(audioFile);
+        await ffmpegInstance.writeFile(audioFilename, audioData);
+
+        // --- Construct FFmpeg Command ---
+        // Calculate effective frame rate from image duration.
+        // If each image is to be displayed for X seconds, then effective frame rate = 1/X.
+        const imageDuration = imageDurationInput.value || 5;
+        const effectiveFrameRate = "1/" + imageDuration;
+        const outputFormat = outputFormatSelect.value;
+        const outputFilename = `output.${outputFormat}`;
+        const command = [
+  '-framerate', effectiveFrameRate,
+  '-i', inputPattern,
+  '-i', audioFilename,
+  // Add filter for even dimensions
+  '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+  '-c:v', outputFormat === 'webm' ? 'libvpx-vp9' : (outputFormat === 'avi' ? 'mpeg4' : 'libx264'),
+  '-pix_fmt', 'yuv420p',
+  '-crf', '23',
+  '-preset', 'medium',
+  '-c:a', outputFormat === 'webm' ? 'libopus' : (outputFormat === 'avi' ? 'libmp3lame' : 'aac'),
+  '-b:a', '128k',
+  '-shortest',
+  outputFilename
+];
+
+
+        console.log('Executing FFmpeg command:', command.join(' '));
+        progressText.textContent = 'Running FFmpeg conversion...';
+
+        // --- Execute FFmpeg ---
+        await ffmpegInstance.exec(command);
+
+        console.log('FFmpeg execution finished.');
+        progressText.textContent = 'Conversion complete. Reading output file...';
+
+        // --- Read Output File ---
+        const outputData = await ffmpegInstance.readFile(outputFilename);
+        console.log(`Output file read successfully (${outputData.length} bytes).`);
+
+        // --- Display Output ---
+        const mimeTypeMap = {
+          'mp4': 'video/mp4',
+          'webm': 'video/webm',
+          'mov': 'video/quicktime',
+          'avi': 'video/x-msvideo'
+        };
+        const mimeType = mimeTypeMap[outputFormat] || 'video/mp4';
+
+        const videoBlob = new Blob([outputData.buffer], { type: mimeType });
+        const videoUrl = URL.createObjectURL(videoBlob);
+
+        outputVideo.src = videoUrl;
+        outputVideo.style.display = 'block';
+        downloadLink.href = videoUrl;
+        downloadLink.download = outputFilename;
+        downloadLink.style.display = 'inline-block';
+        outputMessage.textContent = 'Conversion successful!';
+        outputContainer.style.display = 'block';
+        progressText.textContent = 'Done!';
+
+        // --- Cleanup ---
+        console.log('Cleaning up virtual filesystem...');
+        progressText.textContent = 'Cleaning up...';
+        try {
+          for (let i = 0; i < imageFiles.length; i++) {
+            let targetFilename = imageFiles[i].name;
+            if (nameParts) {
+              const prefix = nameParts[1];
+              const suffix = nameParts[3];
+              const padding = nameParts[2].length;
+              targetFilename = `${prefix}${(i + 1).toString().padStart(padding, '0')}${suffix}`;
+            } else {
+              targetFilename = `image-${i + 1}${imageExtension}`;
+            }
+            await ffmpegInstance.deleteFile(targetFilename);
+          }
+          await ffmpegInstance.deleteFile(audioFilename);
+          await ffmpegInstance.deleteFile(outputFilename);
+          console.log('Virtual filesystem cleanup complete.');
+        } catch (cleanupError) {
+          console.warn('Error during virtual filesystem cleanup:', cleanupError);
+        }
+        progressText.textContent = 'Complete!';
+      } catch (error) {
+        console.error('Error during conversion:', error);
+        logElement.textContent += `\n--- ERROR DURING CONVERSION ---\n${error}\n-----------------------------\n`;
+        logContainer.style.display = 'block';
+        outputMessage.textContent = `Error: ${error.message || error}`;
+        outputContainer.style.display = 'block';
+        progressText.textContent = 'Error!';
+        progressBar.style.backgroundColor = '#dc3545';
+      } finally {
+        startButton.disabled = false;
+        startButton.textContent = 'Start Conversion';
+        progressBar.style.backgroundColor = '#4caf50';
+      }
+    }
+
+    // Helper to read file as Uint8Array
+    function readFileAsUint8Array(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = event => {
+          resolve(new Uint8Array(event.target.result));
+        };
+        reader.onerror = error => {
+          reject(error);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // --- Event Listeners ---
+    startButton.addEventListener('click', async () => {
+      const loaded = await loadFFmpeg();
+      if (loaded) {
+        convertFiles();
+      }
+    });
+
+    window.addEventListener('load', () => {
+      startButton.disabled = false;
+      startButton.textContent = 'Start';
+    });
+
+    outputFormatSelect.addEventListener('change', () => {
+      downloadLink.download = `output.${outputFormatSelect.value}`;
+    });
+  </script>
+</body>
+</html>
