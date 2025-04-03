@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Text Cleaner</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 22px); /* Account for padding and border */
+            cursor: pointer;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button#downloadButton {
+            background-color: #2ecc71;
+        }
+
+        button#downloadButton:hover {
+            background-color: #27ae60;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace; /* Better for viewing text structure */
+            font-size: 0.9em;
+            box-sizing: border-box; /* Include padding in width/height */
+            background-color: #ecf0f1;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border: 1px solid #bde0fe;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #0353a4;
+        }
+
+        .info ul {
+            margin-top: 10px;
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+
+        .error {
+            color: #c0392b;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .processing-status {
+            margin-top: 15px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Intelligent Text Cleaner</h1>
+
+    <div class="info">
+        <strong>How it works:</strong>
+        <ul>
+            <li>Upload a plain text (.txt) file.</li>
+            <li>Removes most line breaks, preserving paragraphs.</li>
+            <li>Intelligently identifies chapter/part/section headings (using keywords, Roman/Arabic numerals, and formatting clues like ALL CAPS lines surrounded by blank lines).</li>
+            <li>Ensures one blank line before and after identified headings.</li>
+            <li>Converts Roman numerals (I, V, X, etc.) to Arabic numerals (1, 5, 10, etc.) ONLY within detected headings. It avoids converting standalone "I" or Roman numerals in regular text.</li>
+            <li>Provides a processed version for viewing and download.</li>
+        </ul>
+    </div>
+
+    <label for="fileInput">Upload your .txt file:</label>
+    <input type="file" id="fileInput" accept=".txt">
+
+    <div id="status" class="processing-status"></div>
+    <div id="error" class="error"></div>
+
+    <textarea id="outputArea" readonly placeholder="Processed text will appear here..."></textarea>
+
+    <button id="downloadButton" disabled>Download Cleaned Text</button>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const outputArea = document.getElementById('outputArea');
+    const downloadButton = document.getElementById('downloadButton');
+    const statusDiv = document.getElementById('status');
+    const errorDiv = document.getElementById('error');
+
+    let originalFileName = 'cleaned_text.txt';
+    let processedContent = '';
+
+    // --- Roman to Arabic Conversion Logic ---
+    function romanToArabic(roman) {
+        if (!roman || typeof roman !== 'string') return null;
+        roman = roman.toUpperCase().trim();
+        if (!/^[IVXLCDM]+$/.test(roman)) return null; // Basic validation
+
+        const romanMap = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+        let result = 0;
+        let prevValue = 0;
+
+        for (let i = roman.length - 1; i >= 0; i--) {
+            const currentValue = romanMap[roman[i]];
+            if (currentValue === undefined) return null; // Invalid character
+
+            if (currentValue < prevValue) {
+                result -= currentValue;
+            } else {
+                result += currentValue;
+            }
+            prevValue = currentValue;
+        }
+
+        // Add a check to re-convert back and see if it matches - prevents invalid sequences like IIV
+        if (result > 0 && result <= 3999) { // Common range limit
+             // Basic re-conversion check (optional, can be complex)
+             // For simplicity, we rely on the initial regex and iteration logic.
+             // A full validator/reconverter is complex.
+             return result;
+        }
+        return null; // Return null if conversion seems invalid or out of range
+    }
+
+    // --- Text Processing Logic ---
+    function processText(text) {
+        statusDiv.textContent = 'Processing... Splitting lines.';
+        // Normalize line breaks and split into lines
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        const numLines = lines.length;
+        const processedData = []; // Store { original: string, processed: string, isHeading: boolean }
+
+        statusDiv.textContent = `Processing... Analyzing ${numLines} lines for headings.`;
+        errorDiv.textContent = ''; // Clear previous errors
+
+        // --- Stage 1: Identify Headings and Process Them ---
+        for (let i = 0; i < numLines; i++) {
+            let line = lines[i];
+            let trimmedLine = line.trim();
+            let isHeading = false;
+            let processedLine = trimmedLine; // Start with the trimmed line
+
+            if (trimmedLine === '') {
+                // Preserve blank lines for now, helps with context detection later
+                 processedData.push({ original: line, processed: '', isHeading: false, isEmpty: true });
+                 continue;
+            }
+
+            // --- Heading Detection Heuristics ---
+
+            // 1. Explicit Keywords + Numerals (Roman or Arabic)
+            // Regex covers: Chapter/Part/Section/Book (case-insensitive), space(s), Roman (IVXLCDM) or Arabic (\d+) numerals, optional dot/colon/space termination
+            const explicitHeadingRegex = /^(Chapter|Part|Section|Book)\s+([IVXLCDM]+|\d+)\s*[:.]?(?:\s+.*)?$/i;
+            let match = trimmedLine.match(explicitHeadingRegex);
+            if (match) {
+                isHeading = true;
+                const keyword = match[1];
+                const numeral = match[2];
+                const restOfLine = trimmedLine.substring(match[0].indexOf(numeral) + numeral.length).trim(); // Get text after numeral
+
+                // Attempt Roman to Arabic conversion ONLY if it looks Roman
+                if (/^[IVXLCDM]+$/i.test(numeral)) {
+                    const arabic = romanToArabic(numeral);
+                    if (arabic !== null && String(arabic) !== numeral) { // Check if conversion happened and is valid
+                        processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}${restOfLine ? (restOfLine.startsWith(':') || restOfLine.startsWith('.') ? '' : ': ') + restOfLine : ''}`;
+                        console.log(`Converted Roman: "${trimmedLine}" -> "${processedLine}"`);
+                    } else {
+                         // Keep original if conversion fails or is unnecessary
+                         processedLine = trimmedLine;
+                         if (arabic === null) console.warn(`Invalid Roman numeral "${numeral}" found in potential heading: "${trimmedLine}"`);
+                    }
+                } else {
+                    // It's already Arabic or something else, just keep it
+                    processedLine = trimmedLine;
+                }
+            }
+
+            // 2. Roman Numeral at Start (Potentially a Heading)
+            // Requires more context - check if it's alone on a line or followed by typical heading text
+            // Be CAUTIOUS to avoid converting "I" pronoun or lists like "I. Item one" unless clearly a heading.
+            if (!isHeading) {
+                const romanStartRegex = /^([IVXLCDM]+)\s*[:.]?\s*(.*)$/i;
+                match = trimmedLine.match(romanStartRegex);
+                 // Avoid converting single 'I' if it's likely the pronoun
+                if (match && !(match[1].toUpperCase() === 'I' && /\b(am|was|will|have|had|do|did|go|went|see|saw)\b/i.test(match[2].split(' ')[0] || ''))) {
+                    // Additional checks: Is the line ALL CAPS? Is it surrounded by blank lines?
+                    const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
+                    const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
+                    const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length > 1 && /[A-Z]/.test(trimmedLine); // More than 1 char, has letters
+
+                    // Consider it a heading if Roman numeral start AND (ALL CAPS OR surrounded by blanks)
+                    if (isAllCaps || (prevLineEmpty && nextLineEmpty)) {
+                        isHeading = true;
+                        const numeral = match[1];
+                        const restOfLine = match[2].trim();
+                        const arabic = romanToArabic(numeral);
+
+                        if (arabic !== null && String(arabic) !== numeral) {
+                             processedLine = `${arabic}${restOfLine ? (restOfLine.startsWith(':') || restOfLine.startsWith('.') ? '' : ': ') + restOfLine : ''}`;
+                             console.log(`Converted Roman (Contextual): "${trimmedLine}" -> "${processedLine}"`);
+                        } else {
+                             processedLine = trimmedLine;
+                              if (arabic === null) console.warn(`Invalid Roman numeral "${numeral}" found in potential context heading: "${trimmedLine}"`);
+                        }
+                    }
+                 }
+            }
+
+             // 3. Implicit Heading Detection (e.g., ALL CAPS line alone)
+             if (!isHeading) {
+                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length > 2 && /[A-Z]/.test(trimmedLine); // Reasonably long, has letters
+                 const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
+                 const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
+
+                 // Require ALL CAPS and typically surrounded by blank lines, or at least one blank line
+                 if (isAllCaps && (prevLineEmpty || nextLineEmpty)) {
+                     // Stronger heuristic: require both blank lines unless it's start/end of doc
+                    if ((prevLineEmpty && nextLineEmpty) || (i === 0 && nextLineEmpty) || (i === numLines - 1 && prevLineEmpty) ) {
+                         isHeading = true;
+                         processedLine = trimmedLine; // No numeral conversion needed here usually
+                         console.log(`Identified Implicit Heading (ALL CAPS): "${trimmedLine}"`);
+                     }
+                 }
+             }
+
+             // 4. Heuristic: Short line between two longer paragraph lines (less reliable, omitted for now to avoid false positives)
+             // Could be added with care, e.g., checking length relative to neighbours.
+
+             processedData.push({
+                original: line,
+                processed: processedLine,
+                isHeading: isHeading,
+                isEmpty: false
+             });
+        }
+
+        statusDiv.textContent = `Processing... Reconstructing text structure.`;
+
+        // --- Stage 2: Reconstruct Text ---
+        let result = '';
+        let currentParagraph = '';
+        let previousLineWasHeading = true; // Start as true to ensure leading space for first paragraph/heading
+
+        for (let i = 0; i < processedData.length; i++) {
+            const item = processedData[i];
+
+            if (item.isHeading) {
+                 // Finalize the previous paragraph if it exists
+                 if (currentParagraph) {
+                     result += currentParagraph.trim() + '\n'; // End paragraph with a single newline
+                     currentParagraph = '';
+                 }
+                 // Add the heading with blank lines around it
+                 // Ensure only one blank line if previous was also heading or start
+                 result += (previousLineWasHeading ? '\n' : '\n\n') + item.processed + '\n\n';
+                 previousLineWasHeading = true;
+            } else if (!item.isEmpty) {
+                // This is part of a paragraph
+                 if (currentParagraph === '') {
+                     // Start of a new paragraph
+                     currentParagraph = item.processed;
+                 } else {
+                     // Continue existing paragraph - join with a space
+                     currentParagraph += ' ' + item.processed;
+                 }
+                 previousLineWasHeading = false;
+            } else {
+                // Original line was empty. We generally ignore these *unless* they
+                // were needed to detect a heading above. Now, we mostly discard them
+                // to collapse unwanted breaks, except around headings.
+                // If the next line is a heading, this empty line might contribute to the
+                // blank line before it, but the heading logic handles adding blank lines anyway.
+                 if (!previousLineWasHeading && currentParagraph) {
+                    // If we hit a blank line after paragraph text, it might signify a paragraph end.
+                    // Let's end the current paragraph here.
+                     result += currentParagraph.trim() + '\n'; // End paragraph
+                     currentParagraph = '';
+                     // Don't set previousLineWasHeading = true, allow next paragraph to start without extra space unless it's a heading
+                 }
+
+            }
+        }
+
+        // Add any remaining paragraph content
+        if (currentParagraph) {
+            result += currentParagraph.trim();
+        }
+
+        // Final cleanup: ensure no excessive leading/trailing whitespace, max one blank line between sections
+        result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+        statusDiv.textContent = 'Processing complete.';
+        return result;
+    }
+
+
+    // --- Event Listeners ---
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            errorDiv.textContent = 'No file selected.';
+            return;
+        }
+
+        if (file.type !== 'text/plain') {
+             errorDiv.textContent = 'Invalid file type. Please upload a .txt file.';
+             outputArea.value = '';
+             downloadButton.disabled = true;
+             processedContent = '';
+             statusDiv.textContent = '';
+             return;
+        }
+
+        originalFileName = file.name.replace(/\.[^/.]+$/, "") + "_cleaned.txt"; // Set download name
+        statusDiv.textContent = 'Reading file...';
+        errorDiv.textContent = '';
+        outputArea.value = ''; // Clear previous output
+        downloadButton.disabled = true;
+
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const text = e.target.result;
+                statusDiv.textContent = 'File read successfully. Starting processing...';
+                // Use setTimeout to allow UI update before potentially long processing
+                setTimeout(() => {
+                    processedContent = processText(text);
+                    outputArea.value = processedContent;
+                    downloadButton.disabled = false;
+                 }, 10); // Small delay
+            } catch (err) {
+                console.error("Error during processing:", err);
+                errorDiv.textContent = `An error occurred during processing: ${err.message}`;
+                statusDiv.textContent = 'Processing failed.';
+                processedContent = '';
+                downloadButton.disabled = true;
+            }
+        };
+
+        reader.onerror = (e) => {
+            console.error("File reading error:", e);
+            errorDiv.textContent = 'Error reading the file.';
+            statusDiv.textContent = 'File reading failed.';
+            processedContent = '';
+            downloadButton.disabled = true;
+        };
+
+        reader.readAsText(file);
+    });
+
+    downloadButton.addEventListener('click', () => {
+        if (!processedContent || downloadButton.disabled) {
+            return;
+        }
+
+        try {
+            const blob = new Blob([processedContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = originalFileName;
+            document.body.appendChild(link); // Required for Firefox
+            link.click();
+            document.body.removeChild(link); // Clean up
+            URL.revokeObjectURL(url); // Free up memory
+            statusDiv.textContent = 'File downloaded.';
+        } catch (err) {
+            console.error("Download error:", err);
+            errorDiv.textContent = `Failed to initiate download: ${err.message}`;
+             statusDiv.textContent = 'Download failed.';
+        }
+    });
+
+</script>
+
+</body>
+</html>
