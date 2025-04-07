@@ -130,12 +130,24 @@
         <strong>How it works:</strong>
         <ul>
             <li>Upload a plain text (.txt) file.</li>
-            <li>Removes most line breaks, preserving paragraphs.</li>
-            <li>Intelligently identifies chapter/part/section headings (using keywords, Roman/Arabic numerals, and formatting clues like ALL CAPS lines surrounded by blank lines).</li>
-            <li>Ensures one blank line before and after identified headings.</li>
-            <li>Converts Roman numerals (I, V, X, etc.) to Arabic numerals (1, 5, 10, etc.) ONLY within detected headings. It avoids converting standalone "I" or Roman numerals in regular text.</li>
-            <li><strong>Removes all underscore (_) characters.</strong></li>
-            <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
+            <li><strong>If the file contains at least four `***` separators:</strong>
+                <ul>
+                    <li>Removes all text before the first `***`.</li>
+                    <li>Removes the text between the first and second `***` (including the delimiters).</li>
+                    <li>Removes all text after the last `***`.</li>
+                    <li>Removes the text between the second-to-last and the last `***` (including the delimiters).</li>
+                    <li>Keeps only the text between the second and second-to-last `***`.</li>
+                </ul>
+            </li>
+            <li><strong>On the *remaining* text:</strong></li>
+                <ul>
+                    <li>Removes most line breaks, preserving paragraphs.</li>
+                    <li>Intelligently identifies chapter/part/section headings (using keywords, Roman/Arabic numerals, and formatting clues like ALL CAPS lines surrounded by blank lines).</li>
+                    <li>Ensures one blank line before and after identified headings.</li>
+                    <li>Converts Roman numerals (I, V, X, etc.) to Arabic numerals (1, 5, 10, etc.) ONLY within detected headings. It avoids converting standalone "I" or Roman numerals in regular text.</li>
+                    <li>Removes all underscore (_) characters.</li>
+                    <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
+                </ul>
             <li>Provides a processed version for viewing and download.</li>
         </ul>
     </div>
@@ -217,15 +229,59 @@
 
     // --- Text Processing Logic ---
     function processText(text) {
+        statusDiv.textContent = 'Processing... Applying *** delimiter logic.';
+        errorDiv.textContent = ''; // Clear previous errors
+
+        // --- *** NEW: Delimiter Processing Logic *** ---
+        const delimiter = '***';
+        const parts = text.split(delimiter);
+
+        // We need at least 4 delimiters to define the sections, which means 5 parts after splitting.
+        if (parts.length >= 5) {
+            // Keep the parts between the second '***' and the second-to-last '***'
+            // This corresponds to indices 2 up to (but not including) parts.length - 2
+            const contentParts = parts.slice(2, parts.length - 2);
+            // Join the kept parts back together using the original delimiter
+            // This preserves any '***' that were *within* the content block itself.
+            text = contentParts.join(delimiter);
+             // Optional: Trim leading/trailing whitespace that might result from the split/join
+            text = text.trim();
+            statusDiv.textContent = 'Processing... Delimiter logic applied. Starting structural analysis.';
+            console.log(`Text extracted between the second and second-to-last "***" delimiters.`);
+        } else if (text.includes(delimiter)) {
+            // Contains the delimiter, but not enough instances for the rule
+            errorDiv.textContent = `Error: Found ${parts.length - 1} instance(s) of "${delimiter}". At least 4 are required for start/end removal logic. Processing skipped.`;
+            statusDiv.textContent = 'Processing failed.';
+            console.warn(`Found ${parts.length - 1} delimiters. Expected at least 4. Skipping processing.`);
+            return ""; // Return empty string as processing cannot proceed as requested
+        } else {
+             // No delimiters found, proceed with the original text
+            statusDiv.textContent = 'Processing... No "***" delimiters found. Starting structural analysis on original text.';
+            console.log(`No "***" delimiters found. Proceeding with original text.`);
+        }
+        // --- End of Delimiter Processing ---
+
+
+        // If the delimiter logic resulted in empty text, stop here
+        if (text === "" && errorDiv.textContent !== '') {
+             return "";
+        }
+         if (text === "") {
+            statusDiv.textContent = 'Processing complete (Result is empty).';
+            return "";
+         }
+
+
         statusDiv.textContent = 'Processing... Splitting lines.';
         const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
         const numLines = lines.length;
         const processedData = [];
 
         statusDiv.textContent = `Processing... Analyzing ${numLines} lines for headings.`;
-        errorDiv.textContent = '';
+        // Error div might have been set by delimiter logic, don't clear it here.
 
-        // --- Stage 1: Identify Headings and Process Them ---
+        // --- Stage 1: Identify Headings and Process Them (Existing Logic) ---
+        // (This part remains unchanged from your original code)
         for (let i = 0; i < numLines; i++) {
             let line = lines[i];
             let trimmedLine = line.trim();
@@ -341,7 +397,7 @@
                              console.warn(`Contextual Roman conversion failed unexpectedly for "${potentialRoman}" in: "${trimmedLine}"`);
                         }
                     } else {
-                        processedLine = trimmedLine; // Keep original if not converting
+                         processedLine = trimmedLine; // Keep original if not converting
                     }
                 }
             }
@@ -349,9 +405,9 @@
             // 3. Implicit Heading Detection (e.g., ALL CAPS line alone)
             if (!isHeading) {
                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase()
-                                     && trimmedLine.length > 1 // Avoid single characters unless 'I' handled above
-                                     && /[A-Z]/.test(trimmedLine) // Must contain letters
-                                     && !/^\d+$/.test(trimmedLine); // Not just numbers
+                                    && trimmedLine.length > 1 // Avoid single characters unless 'I' handled above
+                                    && /[A-Z]/.test(trimmedLine) // Must contain letters
+                                    && !/^\d+$/.test(trimmedLine); // Not just numbers
                 const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                 const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
 
@@ -378,7 +434,8 @@
 
         statusDiv.textContent = `Processing... Reconstructing text structure.`;
 
-        // --- Stage 2: Reconstruct Text ---
+        // --- Stage 2: Reconstruct Text (Existing Logic) ---
+        // (This part remains unchanged from your original code)
         let result = '';
         let currentParagraph = '';
         let previousItemWasHeading = false;
@@ -443,20 +500,20 @@
              if (pendingBlankLine && result !== '') { // Add separator if needed before last paragraph
                  result += '\n';
              } else if (!pendingBlankLine && result !== '' && !previousItemWasHeading) {
-                result += '\n\n'; // Paragraph break if needed
+                 result += '\n\n'; // Paragraph break if needed
              }
             result += currentParagraph.trim();
         }
 
-        // --- Final Cleanup Steps ---
+        // --- Final Cleanup Steps (Existing Logic) ---
 
         // Ensure max one blank line between sections (convert 3+ newlines to 2)
         result = result.replace(/\n{3,}/g, '\n\n');
 
         // Remove text within square brackets (non-greedy match)
-        result = result.replace(/\[.+?\]/g, '');
+        result = result.replace(/\[.*?\]/g, ''); // Made non-greedy with ?
 
-        // *** ADDED STEP: Remove all underscore characters ***
+        // *** Remove all underscore characters ***
         // The 'g' flag ensures all occurrences are replaced.
         result = result.replace(/_/g, '');
 
@@ -506,14 +563,22 @@
                 // Use setTimeout to allow UI update before potentially long processing
                 setTimeout(() => {
                     processedContent = processText(text);
-                    outputArea.value = processedContent;
-                    downloadButton.disabled = false;
-                   }, 10); // Small delay
+                    // Check if processing failed (e.g., due to delimiter issue)
+                    if (processedContent === "" && errorDiv.textContent !== '') {
+                         outputArea.value = ''; // Keep output empty if error occurred
+                         downloadButton.disabled = true;
+                    } else {
+                        outputArea.value = processedContent;
+                        downloadButton.disabled = processedContent === ''; // Disable download if result is empty
+                    }
+                    // Status is set within processText
+                }, 10); // Small delay
             } catch (err) {
                 console.error("Error during processing:", err);
                 errorDiv.textContent = `An error occurred during processing: ${err.message}`;
                 statusDiv.textContent = 'Processing failed.';
                 processedContent = '';
+                outputArea.value = '';
                 downloadButton.disabled = true;
             }
         };
@@ -523,6 +588,7 @@
             errorDiv.textContent = 'Error reading the file.';
             statusDiv.textContent = 'File reading failed.';
             processedContent = '';
+             outputArea.value = '';
             downloadButton.disabled = true;
         };
 
