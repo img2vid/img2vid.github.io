@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Images + Audio to Video Converter</title>
     <style>
+        /* --- CSS Styles (Unchanged) --- */
         body {
             font-family: sans-serif;
             padding: 20px;
@@ -217,7 +218,7 @@
         </div>
 
         <div id="jobs-container">
-            </div>
+             </div>
 
         <div id="job-template" style="display: none;">
              <div class="job-slot" data-job-id="">
@@ -225,24 +226,24 @@
                  <h3>Job #<span></span></h3>
                  <div class="job-controls">
                      <div>
-                        <label for="imageFiles_">Select Image Files:</label>
-                        <input type="file" id="imageFiles_" name="imageFiles" multiple accept="image/*">
-                        <div class="file-info">Sequentially named (e.g., img001, img002...). Sorted alphabetically.</div>
+                         <label for="imageFiles_">Select Image Files:</label>
+                         <input type="file" id="imageFiles_" name="imageFiles" multiple accept="image/*">
+                         <div class="file-info">Sequentially named (e.g., img001, img002...). Sorted alphabetically.</div>
                      </div>
                      <div>
-                         <label for="audioFile_">Select Audio File:</label>
-                         <input type="file" id="audioFile_" name="audioFile" accept="audio/*">
+                          <label for="audioFile_">Select Audio File:</label>
+                          <input type="file" id="audioFile_" name="audioFile" accept="audio/*">
                      </div>
                      <div>
-                         <label for="imageDuration_">Image Duration (s):</label>
-                         <input type="number" id="imageDuration_" name="imageDuration" value="5" min="0.1" step="0.1">
+                          <label for="imageDuration_">Image Duration (s):</label>
+                          <input type="number" id="imageDuration_" name="imageDuration" value="5" min="0.1" step="0.1" placeholder="Leave blank for full audio duration">
                      </div>
                      <div>
-                         <label for="outputFormat_">Output Format:</label>
-                         <select id="outputFormat_" name="outputFormat">
-                             <option value="mp4">MP4</option>
-                             <option value="mov">MOV</option>
-                         </select>
+                          <label for="outputFormat_">Output Format:</label>
+                          <select id="outputFormat_" name="outputFormat">
+                              <option value="mp4">MP4</option>
+                              <option value="mov">MOV</option>
+                          </select>
                      </div>
                  </div>
                  <div class="job-output">
@@ -315,18 +316,15 @@
                 });
 
                 ffmpegInstance.on('progress', ({ progress, time }) => {
-                     // Currently, ffmpeg.wasm progress event doesn't reliably provide total duration
-                     // before encoding starts. We'll rely on overall job progress.
-                     // You could try parsing duration from logs for a more granular progress *within* a job,
-                     // but it adds complexity. Let's stick to overall progress first.
-                     console.log(`FFmpeg progress (raw):`, { progress, time });
+                    // Basic intra-job progress update (can be inaccurate)
+                    console.log(`FFmpeg progress (raw):`, { progress, time });
                      if(isProcessing && currentJobIndex >= 0) {
-                        // Basic intra-job progress update (can be inaccurate)
                         const jobProgress = Math.min(100, Math.max(0, (progress || 0) * 100));
                         overallProgressText.textContent = `Processing Job ${currentJobIndex + 1} of ${jobs.length}... (${jobProgress.toFixed(1)}%)`;
                      }
                 });
 
+                // Assumes ffmpeg-core files are in the root directory
                 await ffmpegInstance.load({
                     coreURL: './ffmpeg-core.js',
                     wasmURL: './ffmpeg-core.wasm'
@@ -362,8 +360,14 @@
             newJobFragment.querySelectorAll('input, select').forEach(input => {
                 const oldId = input.id;
                 if (oldId) input.id = `${oldId}${jobCounter}`;
-                // Reset file inputs
-                if (input.type === 'file') input.value = '';
+                // Reset file inputs and specific defaults
+                if (input.type === 'file') {
+                    input.value = '';
+                } else if (input.name === 'imageDuration') {
+                     // Set default value and placeholder for new jobs
+                     input.value = '5';
+                     input.placeholder = "Leave blank for full audio duration";
+                }
             });
 
             // Add event listener for the remove button
@@ -428,9 +432,27 @@
                      return; // Skip this job
                 }
                  if (audioInput.files.length !== 1) {
-                    updateJobStatus(slot, 'Error', 'Exactly one audio file must be selected.');
-                    return; // Skip this job
+                     updateJobStatus(slot, 'Error', 'Exactly one audio file must be selected.');
+                     return; // Skip this job
                  }
+
+                // --- MODIFICATION START: Handle duration input ---
+                const durationValue = durationInput.value.trim();
+                let imageDurationValue = null; // Default to null (meaning use audio duration)
+
+                if (durationValue !== "") {
+                    const parsedDuration = parseFloat(durationValue);
+                    if (!isNaN(parsedDuration) && parsedDuration > 0) {
+                        imageDurationValue = parsedDuration; // Use the parsed number
+                    } else {
+                        // Invalid number entered (but not empty), default to 5
+                        console.warn(`Job ${jobId}: Invalid duration "${durationValue}", defaulting to 5s.`);
+                        imageDurationValue = 5;
+                        durationInput.value = '5'; // Update UI to show the default used
+                    }
+                }
+                // If durationValue was "", imageDurationValue remains null
+                // --- MODIFICATION END ---
 
                 // Store job data
                 jobs.push({
@@ -438,7 +460,7 @@
                     slotElement: slot,
                     imageFiles: Array.from(imageInput.files).sort((a, b) => a.name.localeCompare(b.name)), // Sort images
                     audioFile: audioInput.files[0],
-                    imageDuration: parseFloat(durationInput.value) || 5,
+                    imageDuration: imageDurationValue, // Store null or the number
                     outputFormat: formatSelect.value,
                     statusDiv,
                     messageDiv,
@@ -504,6 +526,7 @@
 
         // --- Process a Single Job ---
         async function processSingleJob(job) {
+            // Destructure imageDuration correctly
             const { id, slotElement, imageFiles, audioFile, imageDuration, outputFormat, messageDiv, videoEl, downloadEl } = job;
             const uniquePrefix = `job${id}_`; // Unique prefix for files in this job
             let inputPattern = '';
@@ -520,9 +543,10 @@
 
                 // Determine input pattern and write images with unique names
                 const firstImageName = imageFiles[0].name;
+                // Regex to match name, sequence number, and extension
                 const nameParts = firstImageName.match(/^(.*?)(\d+)(\.\w+)$/);
 
-                if (nameParts) {
+                if (nameParts && imageFiles.length > 1) { // Use pattern only if sequence detected and more than one image
                     const prefix = nameParts[1];
                     const numberString = nameParts[2];
                     const suffix = nameParts[3];
@@ -530,25 +554,29 @@
                     // IMPORTANT: Use the *unique prefix* in the pattern for FFmpeg
                     inputPattern = `${uniquePrefix}${prefix}%0${padding}d${suffix}`;
                     imageExtension = suffix;
-                    console.log(`Job ${id}: Detected image pattern: ${inputPattern}`);
+                    console.log(`Job ${id}: Detected image sequence pattern: ${inputPattern}`);
                 } else {
-                    console.warn(`Job ${id}: Could not detect standard sequence naming. Using fallback.`);
-                     imageExtension = getFileExtension(firstImageName);
-                     inputPattern = `${uniquePrefix}image-%d${imageExtension}`;
+                    // Fallback for single image or non-standard naming
+                    imageExtension = getFileExtension(firstImageName);
+                    // Create a simple pattern assuming we'll name them sequentially
+                    inputPattern = `${uniquePrefix}image-%d${imageExtension}`;
+                    console.log(`Job ${id}: Using fallback pattern: ${inputPattern}`);
                 }
 
+                // Write images with consistent naming for the pattern
                  for (let i = 0; i < imageFiles.length; i++) {
                      const file = imageFiles[i];
-                     let targetFilename;
-                     if (nameParts) {
+                     // Generate filename based on the determined pattern structure
+                     let targetFilename = inputPattern.replace('%d', (i + 1)).replace(/%\d*d/, (i + 1)); // Basic replacement
+                     if (nameParts && imageFiles.length > 1) {
                          const prefix = nameParts[1];
-                         const suffix = nameParts[3];
                          const padding = nameParts[2].length;
-                         // IMPORTANT: Use the *unique prefix* when writing the file
+                         const suffix = nameParts[3];
                          targetFilename = `${uniquePrefix}${prefix}${(i + 1).toString().padStart(padding, '0')}${suffix}`;
                      } else {
-                         targetFilename = `${uniquePrefix}image-${i + 1}${imageExtension}`;
+                          targetFilename = `${uniquePrefix}image-${i + 1}${imageExtension}`;
                      }
+
                      tempImageFilenames.push(targetFilename); // Keep track for cleanup
                      // console.log(`Job ${id}: Writing image ${i + 1}/${imageFiles.length}: ${file.name} as ${targetFilename}`);
                      const data = await readFileAsUint8Array(file);
@@ -563,25 +591,47 @@
 
                 // --- 2. Construct and Execute FFmpeg Command ---
                  messageDiv.textContent = 'Running conversion...';
-                 const effectiveFrameRate = `1/${imageDuration}`;
-                 const command = [
-                     '-framerate', effectiveFrameRate,
-                     '-i', inputPattern, // Use the pattern with unique prefix
-                     '-i', tempAudioFilename, // Use the unique audio filename
-                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Ensure even dimensions
-                     '-c:v', outputFormat === 'mov' ? 'libx264' : 'libx264', // H.264 is widely compatible
-                     '-pix_fmt', 'yuv420p',
-                     '-crf', '23', // Constant Rate Factor (lower=better quality, larger file)
-                     '-preset', 'medium', // Encoding speed vs compression (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
-                     '-c:a', 'aac', // AAC is widely compatible
-                     '-b:a', '128k',
-                     '-shortest', // Finish encoding when the shortest input stream ends (usually the audio)
-                     outputFilename // Use the unique output filename
-                 ];
 
-                console.log(`Job ${id}: Executing FFmpeg command:`, command.join(' '));
-                await ffmpegInstance.exec(command);
-                console.log(`Job ${id}: FFmpeg execution finished.`);
+                 // --- MODIFICATION START: Build command based on imageDuration ---
+                 const command = [];
+
+                 if (imageDuration !== null) {
+                     // CASE 1: Specific duration provided
+                     console.log(`Job ${id}: Using specified image duration: ${imageDuration}s`);
+                     const effectiveFrameRate = `1/${imageDuration}`;
+                     command.push(
+                         '-framerate', effectiveFrameRate, // Set image framerate based on duration
+                         '-i', inputPattern // Image sequence input
+                     );
+                 } else {
+                     // CASE 2: Duration box was empty (imageDuration is null)
+                     console.log(`Job ${id}: Using full audio duration (looping images)`);
+                     command.push(
+                         '-stream_loop', '-1', // Loop the image sequence indefinitely
+                         // Optional: add '-r', '25', if default causes issues
+                         '-i', inputPattern // Image sequence input
+                     );
+                 }
+
+                 // Add audio input and common output options
+                 command.push(
+                     '-i', tempAudioFilename, // Audio input
+                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Ensure even dimensions for compatibility
+                     '-c:v', outputFormat === 'mov' ? 'libx264' : 'libx264', // H.264 codec
+                     '-pix_fmt', 'yuv420p', // Pixel format for compatibility
+                     '-crf', '23', // Constant Rate Factor (quality vs size)
+                     '-preset', 'medium', // Encoding speed vs compression
+                     '-c:a', 'aac', // AAC audio codec
+                     '-b:a', '128k', // Audio bitrate
+                     '-shortest', // Finish encoding when the shortest input ends (audio in the loop case, either in the fixed duration case)
+                     outputFilename // Unique output filename
+                 );
+                 // --- MODIFICATION END ---
+
+
+                 console.log(`Job ${id}: Executing FFmpeg command:`, command.join(' '));
+                 await ffmpegInstance.exec(command);
+                 console.log(`Job ${id}: FFmpeg execution finished.`);
 
                 // --- 3. Read Output and Display ---
                 messageDiv.textContent = 'Reading output file...';
@@ -595,7 +645,7 @@
 
                  // Revoke previous URL if exists to prevent memory leaks
                  if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
-                    URL.revokeObjectURL(downloadEl.href);
+                     URL.revokeObjectURL(downloadEl.href);
                  }
 
                 videoEl.src = videoUrl;
@@ -622,10 +672,18 @@
                 console.log(`Job ${id}: Cleaning up virtual filesystem...`);
                 try {
                     for (const filename of tempImageFilenames) {
-                        await ffmpegInstance.deleteFile(filename);
+                        // Check if file exists before deleting (optional, prevents warnings if exec failed early)
+                        // if (await ffmpegInstance.exists(filename)) {
+                           await ffmpegInstance.deleteFile(filename);
+                        // }
                     }
-                    await ffmpegInstance.deleteFile(tempAudioFilename);
-                    await ffmpegInstance.deleteFile(outputFilename); // Delete output only after reading it
+                     // if (await ffmpegInstance.exists(tempAudioFilename)) {
+                        await ffmpegInstance.deleteFile(tempAudioFilename);
+                     // }
+                     // Delete output only after reading it successfully or if it exists after failure
+                     // if (await ffmpegInstance.exists(outputFilename)) {
+                        await ffmpegInstance.deleteFile(outputFilename);
+                     // }
                     console.log(`Job ${id}: Virtual filesystem cleanup complete.`);
                 } catch (cleanupError) {
                     console.warn(`Job ${id}: Error during virtual filesystem cleanup:`, cleanupError);
