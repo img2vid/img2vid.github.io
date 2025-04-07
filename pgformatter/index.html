@@ -135,6 +135,7 @@
             <li>Intelligently identifies chapter/part/section headings (using keywords, Roman/Arabic numerals, and formatting clues like ALL CAPS lines surrounded by blank lines).</li>
             <li>Ensures one blank line before and after identified headings.</li>
             <li>Converts Roman numerals (I, V, X, etc.) to Arabic numerals (1, 5, 10, etc.) ONLY within detected headings. It avoids converting standalone "I" or Roman numerals in regular text.</li>
+            <li><strong>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</strong></li> {/* <-- Added description */}
             <li>Provides a processed version for viewing and download.</li>
         </ul>
     </div>
@@ -164,7 +165,7 @@
     function romanToArabic(roman) {
         if (!roman || typeof roman !== 'string') return null;
         roman = roman.toUpperCase().trim();
-        // CHANGE: Use a stricter regex that requires word boundaries (\b) to ensure we are trying to convert a standalone numeral
+        // Use a stricter regex that requires word boundaries (\b) to ensure we are trying to convert a standalone numeral
         // This helps prevent matching parts of words, but the main defense is in the calling logic now.
         if (!/^\b[IVXLCDM]+\b$/i.test(roman)) return null;
 
@@ -207,8 +208,8 @@
             if (arabicToRomanSimpleCheck(result) === tempRoman) {
                  return result;
             } else {
-                console.warn(`Potential invalid Roman sequence: "${roman}" calculated to ${result}, but re-converts differently.`);
-                return null; // Treat as invalid if reconversion doesn't match
+                 console.warn(`Potential invalid Roman sequence: "${roman}" calculated to ${result}, but re-converts differently.`);
+                 return null; // Treat as invalid if reconversion doesn't match
             }
         }
         return null; // Out of range or invalid
@@ -240,8 +241,6 @@
             // --- Heading Detection Heuristics ---
 
             // 1. Explicit Keywords + Numerals (Roman or Arabic)
-            // Regex covers: Chapter/Part/Section/Book (case-insensitive), space(s), Roman (as a *word*) or Arabic (\d+) numerals, optional dot/colon/space termination
-            // CHANGE: Added \b around [IVXLCDM]+ to ensure it matches a whole Roman numeral word, not part of another word.
             const explicitHeadingRegex = /^(Chapter|Part|Section|Book)\s+(\b[IVXLCDM]+\b|\d+)\s*[:.]?(?:\s+.*)?$/i;
             let match = trimmedLine.match(explicitHeadingRegex);
             if (match) {
@@ -250,122 +249,97 @@
                 const numeralStr = match[2]; // This is either Roman chars or digits
                 const restOfLine = trimmedLine.substring(match[0].indexOf(numeralStr) + numeralStr.length).trim();
 
-                // Attempt Roman to Arabic conversion ONLY if it looks Roman (contains I,V,X etc.)
-                // The \b in the regex already helps ensure it's standalone.
                 if (/^[IVXLCDM]+$/i.test(numeralStr)) {
-                    const arabic = romanToArabic(numeralStr); // Use the stricter romanToArabic
-                    if (arabic !== null) { // Check if conversion was valid
-                        // CHANGE: Improved reconstruction logic
+                    const arabic = romanToArabic(numeralStr);
+                    if (arabic !== null) {
                         let separator = '';
                         if (restOfLine) {
-                            // Keep existing separator if it's : or . otherwise add ': '
                             separator = (/^[:.]/.test(restOfLine)) ? '' : ': ';
-                            // Remove the original separator before appending restOfLine
                             processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}${separator}${restOfLine.replace(/^[:.\s]+/, '')}`;
                         } else {
                              processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}`;
                         }
                         console.log(`Converted Explicit Roman: "${trimmedLine}" -> "${processedLine}"`);
                     } else {
-                        // Keep original if conversion fails (invalid Roman sequence)
                         processedLine = trimmedLine;
                         console.warn(`Invalid Roman numeral "${numeralStr}" found in explicit heading: "${trimmedLine}"`);
                     }
                 } else {
-                    // It's already Arabic, just ensure proper capitalization
                      processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${numeralStr}${restOfLine ? (restOfLine.startsWith(':') || restOfLine.startsWith('.') ? '' : ': ') + restOfLine : ''}`;
                 }
             }
 
-            // 2. Roman Numeral Word at Start (Potentially a Heading) - BE VERY CAREFUL HERE
-            // CHANGE: More rigorous checks to avoid converting English words or pronoun "I".
+            // 2. Roman Numeral Word at Start (Potentially a Heading)
             if (!isHeading) {
-                // Regex: Start of line (^), word boundary (\b), one or more Roman chars ([IVXLCDM]+), word boundary (\b)
-                // Followed optionally by a separator (: or .) OR whitespace (\s) and the rest (.*)
                 const romanWordStartRegex = /^\b([IVXLCDM]+)\b([:.\s].*)?$/i;
                 match = trimmedLine.match(romanWordStartRegex);
 
                 if (match) {
                     const potentialRoman = match[1];
                     const restOfLine = (match[2] || '').trim();
-
-                    // **CRITICAL CHECKS** to avoid false positives:
                     let proceedWithConversion = false;
 
-                    // A. Check if it's just the pronoun "I"
                     if (potentialRoman.toUpperCase() === 'I') {
-                        // Is "I" alone on the line (surrounded by blanks)? -> Likely Heading
                         const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                         const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
                         if (restOfLine === '' && prevLineEmpty && nextLineEmpty) {
-                             proceedWithConversion = true;
-                             console.log(`Treating standalone 'I' between blanks as heading: "${trimmedLine}"`);
+                            proceedWithConversion = true;
+                            console.log(`Treating standalone 'I' between blanks as heading: "${trimmedLine}"`);
                         } else {
-                             // Is "I" followed by a lowercase letter or common verb? -> Likely Pronoun
-                             const firstWordAfterI = restOfLine.split(/\s+/)[0] || '';
-                             const commonVerbs = /\b(am|was|will|have|had|do|did|go|went|see|saw|think|like|know|can|could|would|feel|want|is|m|ve|d|ll)\b/i; // Added contractions
-                             if (/^[a-z]/.test(restOfLine) || commonVerbs.test(firstWordAfterI)) {
-                                 proceedWithConversion = false;
-                                 console.log(`Skipping 'I' conversion (looks like pronoun): "${trimmedLine}"`);
-                             } else {
-                                 // Ambiguous "I". Only convert if strongly formatted (ALL CAPS, surrounded by blanks)
-                                  const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
-                                 if (isAllCaps || (prevLineEmpty && nextLineEmpty)){
-                                     proceedWithConversion = true;
-                                 } else {
-                                      proceedWithConversion = false;
-                                      console.log(`Skipping ambiguous 'I' conversion (weak formatting): "${trimmedLine}"`);
-                                 }
-                             }
+                            const firstWordAfterI = restOfLine.split(/\s+/)[0] || '';
+                            const commonVerbs = /\b(am|was|will|have|had|do|did|go|went|see|saw|think|like|know|can|could|would|feel|want|is|m|ve|d|ll)\b/i;
+                            if (/^[a-z]/.test(restOfLine) || commonVerbs.test(firstWordAfterI)) {
+                                proceedWithConversion = false;
+                                console.log(`Skipping 'I' conversion (looks like pronoun): "${trimmedLine}"`);
+                            } else {
+                                const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
+                                if (isAllCaps || (prevLineEmpty && nextLineEmpty)){
+                                    proceedWithConversion = true;
+                                } else {
+                                     proceedWithConversion = false;
+                                     console.log(`Skipping ambiguous 'I' conversion (weak formatting): "${trimmedLine}"`);
+                                }
+                            }
                         }
                     } else {
-                        // B. For other potential Roman numerals (V, X, IV, etc.)
-                        // Check context: ALL CAPS or surrounded by blank lines increases confidence.
                         const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                         const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
                         const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
 
-                        // Require strong indicators for conversion if it's not an explicit keyword heading
                         if (isAllCaps || (prevLineEmpty && nextLineEmpty)) {
-                           // Further check: Does the potentialRoman *actually* look like a valid Roman numeral?
-                           // Call romanToArabic here, if it returns null, it's likely not valid or it's a word like "MIX"
-                           if(romanToArabic(potentialRoman) !== null) {
-                               proceedWithConversion = true;
-                           } else {
-                               console.log(`Skipping conversion (invalid Roman sequence or word?): "${potentialRoman}" in line "${trimmedLine}"`);
-                               proceedWithConversion = false;
-                           }
+                            if(romanToArabic(potentialRoman) !== null) {
+                                proceedWithConversion = true;
+                            } else {
+                                console.log(`Skipping conversion (invalid Roman sequence or word?): "${potentialRoman}" in line "${trimmedLine}"`);
+                                proceedWithConversion = false;
+                            }
                         } else {
                             console.log(`Skipping potential Roman conversion (weak formatting): "${trimmedLine}"`);
                             proceedWithConversion = false;
                         }
                     }
 
-                    // Only if checks pass, attempt conversion and mark as heading
                     if (proceedWithConversion) {
-                        const arabic = romanToArabic(potentialRoman); // Already validated somewhat above
+                        const arabic = romanToArabic(potentialRoman);
                         if (arabic !== null) {
                             isHeading = true;
-                            // CHANGE: Improved reconstruction
                              let separator = '';
                              let actualRest = restOfLine;
                              if (actualRest) {
-                                 if (/^[:.]/.test(actualRest)) { // Starts with : or .
-                                     separator = ''; // Keep original punctuation
+                                 if (/^[:.]/.test(actualRest)) {
+                                     separator = '';
                                  } else if (actualRest.length > 0) {
-                                     separator = ': '; // Add default separator if there's text
+                                     separator = ': ';
                                  }
-                                 actualRest = actualRest.replace(/^[:.\s]+/, ''); // Remove leading punctuation/space
+                                 actualRest = actualRest.replace(/^[:.\s]+/, '');
                              }
                              processedLine = `${arabic}${separator}${actualRest}`;
                             console.log(`Converted Contextual Roman: "${trimmedLine}" -> "${processedLine}"`);
                         } else {
-                            // Conversion failed unexpectedly (should have been caught earlier), keep original
                             processedLine = trimmedLine;
                              console.warn(`Contextual Roman conversion failed unexpectedly for "${potentialRoman}" in: "${trimmedLine}"`);
                         }
                     } else {
-                        // Did not meet criteria, treat as normal text
                         processedLine = trimmedLine;
                     }
                 }
@@ -374,19 +348,17 @@
             // 3. Implicit Heading Detection (e.g., ALL CAPS line alone)
             if (!isHeading) {
                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase()
-                                  && trimmedLine.length > 1 // Avoid single letters unless they are Roman handled above
-                                  && /[A-Z]/.test(trimmedLine) // Must contain letters
-                                  && !/\d/.test(trimmedLine); // Avoid lines that are just numbers in caps context
+                                    && trimmedLine.length > 1
+                                    && /[A-Z]/.test(trimmedLine)
+                                    && !/\d/.test(trimmedLine);
                 const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                 const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
 
-                // Require ALL CAPS and surrounded by blank lines, or at start/end with one blank line
                 if (isAllCaps && ((prevLineEmpty && nextLineEmpty) || (i === 0 && nextLineEmpty) || (i === numLines - 1 && prevLineEmpty))) {
-                    // Double-check it doesn't look like a Roman word we decided *not* to convert earlier
                     const romanWordRegex = /^\b[IVXLCDM]+\b$/i;
-                    if (!romanWordRegex.test(trimmedLine)) { // Only mark as heading if it's not *just* a Roman word we skipped
+                    if (!romanWordRegex.test(trimmedLine)) {
                          isHeading = true;
-                         processedLine = trimmedLine; // No numeral conversion needed here
+                         processedLine = trimmedLine;
                          console.log(`Identified Implicit Heading (ALL CAPS): "${trimmedLine}"`);
                     } else {
                          console.log(`Skipping ALL CAPS heading mark for potential Roman word: "${trimmedLine}"`);
@@ -397,9 +369,9 @@
             // Push the result for this line
             processedData.push({
                 original: line,
-                processed: processedLine, // Use the potentially modified line
+                processed: processedLine,
                 isHeading: isHeading,
-                isEmpty: false // Already handled empty lines at the start
+                isEmpty: false
             });
         }
 
@@ -408,75 +380,76 @@
         // --- Stage 2: Reconstruct Text ---
         let result = '';
         let currentParagraph = '';
-        let previousItemWasHeading = false; // Track if the *last added item* to result was a heading
-        let pendingBlankLine = true; // Start needing a blank line (or beginning of file)
+        let previousItemWasHeading = false;
+        let pendingBlankLine = true;
 
         for (let i = 0; i < processedData.length; i++) {
             const item = processedData[i];
 
             if (item.isHeading) {
-                // Finalize the previous paragraph if it exists
                 if (currentParagraph) {
                     result += currentParagraph.trim() + '\n';
                     currentParagraph = '';
-                    pendingBlankLine = true; // Paragraph break means we need a blank line before next heading
+                    pendingBlankLine = true;
                 }
-                 // Add blank line(s) before heading if needed
                  if (!pendingBlankLine) {
-                      result += '\n'; // Need at least one blank line
+                     result += '\n';
                  }
-                 result += '\n' + item.processed + '\n'; // Add heading surrounded by single newlines (becomes blanks)
-                 pendingBlankLine = true; // Heading needs blank line after
+                 result += '\n' + item.processed + '\n';
+                 pendingBlankLine = true;
                  previousItemWasHeading = true;
 
             } else if (!item.isEmpty) {
-                // This is part of a paragraph
                 if (currentParagraph === '') {
-                     // Start of a new paragraph
                      if(!pendingBlankLine && !previousItemWasHeading) {
-                         // If previous line was also text and no blank line pending, add paragraph break
-                         result += '\n\n'; // Ensure paragraph separation if joining text blocks implicitly
+                         result += '\n\n';
                      } else if (pendingBlankLine && result !== '') {
-                         // If a blank line was pending (e.g., after a heading), add it now
                          result += '\n';
                      }
                      currentParagraph = item.processed;
                  } else {
-                     // Continue existing paragraph - join with a space, handling hyphens
-                      if (currentParagraph.endsWith('-')) {
-                           // Simple hyphen check: join directly if previous line ends with hyphen
-                           currentParagraph = currentParagraph.slice(0, -1) + item.processed;
-                      } else {
-                            currentParagraph += ' ' + item.processed;
-                      }
+                     if (currentParagraph.endsWith('-')) {
+                          currentParagraph = currentParagraph.slice(0, -1) + item.processed;
+                     } else {
+                          currentParagraph += ' ' + item.processed;
+                     }
                  }
-                 pendingBlankLine = false; // Content added, no longer need leading blank line immediately
+                 pendingBlankLine = false;
                  previousItemWasHeading = false;
 
             } else { // item.isEmpty is true
-                 // An original blank line was found. If we are in a paragraph, end it.
                  if (currentParagraph) {
-                      result += currentParagraph.trim() + '\n';
-                      currentParagraph = '';
-                      pendingBlankLine = true; // Blank line acts as paragraph separator
+                     result += currentParagraph.trim() + '\n';
+                     currentParagraph = '';
+                     pendingBlankLine = true;
                  }
-                 // Don't set previousItemWasHeading; blank lines don't affect heading spacing logic directly
-                 // but ensure pendingBlankLine is true so the next content block is spaced correctly.
                  pendingBlankLine = true;
             }
         }
 
-        // Add any remaining paragraph content
         if (currentParagraph) {
-             // Check if a blank line is needed before this final paragraph
              if (pendingBlankLine && result !== '') {
                  result += '\n';
              }
              result += currentParagraph.trim();
         }
 
-        // Final cleanup: ensure max one blank line between sections, trim start/end
-        result = result.replace(/\n{3,}/g, '\n\n').trim();
+        // Final cleanup: ensure max one blank line between sections
+        result = result.replace(/\n{3,}/g, '\n\n');
+
+        // *** NEW STEP: Remove text within square brackets ***
+        // Uses a non-greedy match (.+?) to handle multiple brackets on one line correctly.
+        // Replaces the brackets and their content with an empty string.
+        result = result.replace(/\[.+?\]/g, '');
+
+        // Optional: Clean up extra spaces that might be left after removal
+        result = result.replace(/ {2,}/g, ' '); // Replace multiple spaces with single space
+        result = result.replace(/ \n/g, '\n'); // Remove space before newline
+        result = result.replace(/\n /g, '\n'); // Remove space after newline
+
+
+        // Final trim
+        result = result.trim();
 
         statusDiv.textContent = 'Processing complete.';
         return result;
