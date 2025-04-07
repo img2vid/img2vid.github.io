@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Images + Audio to Video Converter</title>
     <style>
-        /* --- CSS Styles (Unchanged) --- */
+        /* CSS styles remain exactly as provided in the original prompt */
         body {
             font-family: sans-serif;
             padding: 20px;
@@ -183,6 +183,8 @@
          }
         .job-output .status.success { color: #28a745; }
         .job-output .status.error { color: #dc3545; }
+        .job-output .status.pending { color: #6c757d; }
+        .job-output .status.processing { color: #007bff; }
         .job-output .message { font-size: 0.9em; color: #555; }
 
         a.download-link {
@@ -211,8 +213,7 @@
     <div class="container">
         <h1>Bulk Images + Audio to Video Converter</h1>
         <p>Add multiple conversion jobs below. For each job, select sequentially named images (e.g., img001.png, img002.png...) and one audio file.</p>
-
-        <div>
+        <p>Leave 'Image Duration' empty to automatically divide audio length by the number of images.</p> <div>
              <button id="addJobButton" class="secondary">Add Conversion Job</button>
              <button id="startAllButton" class="primary" disabled>Load FFmpeg & Start All</button>
         </div>
@@ -236,8 +237,7 @@
                      </div>
                      <div>
                           <label for="imageDuration_">Image Duration (s):</label>
-                          <input type="number" id="imageDuration_" name="imageDuration" value="5" min="0.1" step="0.1" placeholder="Leave blank for full audio duration">
-                     </div>
+                          <input type="number" id="imageDuration_" name="imageDuration" placeholder="Auto (AudioLen / Imgs)" min="0.01" step="0.01"> </div>
                      <div>
                           <label for="outputFormat_">Output Format:</label>
                           <select id="outputFormat_" name="outputFormat">
@@ -275,7 +275,7 @@
     <script>
         const { FFmpeg } = FFmpegWASM;
         let ffmpegInstance = null;
-        let jobs = []; // Array to hold job data
+        let jobs = []; // Array to hold job data AFTER validation/calculation
         let jobCounter = 0; // To assign unique IDs to job slots
         let currentJobIndex = -1; // Index of the job being processed
         let isProcessing = false;
@@ -316,23 +316,22 @@
                 });
 
                 ffmpegInstance.on('progress', ({ progress, time }) => {
-                    // Basic intra-job progress update (can be inaccurate)
+                     // Progress update logic (can remain as is or be improved)
                     console.log(`FFmpeg progress (raw):`, { progress, time });
-                     if(isProcessing && currentJobIndex >= 0) {
+                    if(isProcessing && currentJobIndex >= 0) {
                         const jobProgress = Math.min(100, Math.max(0, (progress || 0) * 100));
                         overallProgressText.textContent = `Processing Job ${currentJobIndex + 1} of ${jobs.length}... (${jobProgress.toFixed(1)}%)`;
-                     }
+                    }
                 });
 
-                // Assumes ffmpeg-core files are in the root directory
                 await ffmpegInstance.load({
-                    coreURL: './ffmpeg-core.js',
-                    wasmURL: './ffmpeg-core.wasm'
+                    coreURL: './ffmpeg-core.js', // Assumes files are in the same directory
+                    wasmURL: './ffmpeg-core.wasm' // Assumes files are in the same directory
                 });
 
                 console.log('FFmpeg core loaded successfully.');
                 startAllButton.textContent = 'Start All Jobs';
-                startAllButton.disabled = jobs.length === 0; // Enable only if jobs exist
+                startAllButton.disabled = jobsContainer.querySelectorAll('.job-slot').length === 0; // Enable only if jobs exist
                 addJobButton.disabled = false;
                 return true;
             } catch (error) {
@@ -360,14 +359,9 @@
             newJobFragment.querySelectorAll('input, select').forEach(input => {
                 const oldId = input.id;
                 if (oldId) input.id = `${oldId}${jobCounter}`;
-                // Reset file inputs and specific defaults
-                if (input.type === 'file') {
-                    input.value = '';
-                } else if (input.name === 'imageDuration') {
-                     // Set default value and placeholder for new jobs
-                     input.value = '5';
-                     input.placeholder = "Leave blank for full audio duration";
-                }
+                if (input.type === 'file') input.value = '';
+                // Set default for duration input correctly
+                if (input.name === 'imageDuration') input.value = ''; // Start empty for auto-calc hint
             });
 
             // Add event listener for the remove button
@@ -390,7 +384,7 @@
             startAllButton.disabled = !ffmpegInstance || jobSlots.length === 0 || isProcessing;
         }
 
-        // --- File Reading Helper ---
+        // --- File Reading Helpers ---
         function readFileAsUint8Array(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -400,8 +394,50 @@
             });
         }
 
-        // --- Main Processing Logic ---
-        async function runAllJobs() {
+        // --- NEW: Get Audio Duration Helper ---
+        function getAudioDuration(audioFile) {
+            return new Promise((resolve, reject) => {
+                if (!audioFile || !audioFile.type.startsWith('audio/')) {
+                    return reject(new Error("Invalid or missing audio file."));
+                }
+                const tempAudio = document.createElement('audio');
+                const objectURL = URL.createObjectURL(audioFile);
+                tempAudio.preload = 'metadata'; // Only need metadata, not the whole file
+
+                const cleanup = () => {
+                    tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
+                    tempAudio.removeEventListener('error', onError);
+                    URL.revokeObjectURL(objectURL); // IMPORTANT: Clean up Blob URL
+                };
+
+                const onLoadedMetadata = () => {
+                    const duration = tempAudio.duration;
+                    cleanup();
+                    console.log(`Audio duration for ${audioFile.name}: ${duration}`);
+                    if (isNaN(duration) || !isFinite(duration) || duration <= 0) {
+                       reject(new Error(`Could not determine a valid positive duration for ${audioFile.name}.`));
+                    } else {
+                        resolve(duration);
+                    }
+                };
+
+                const onError = (e) => {
+                    cleanup();
+                    console.error(`Error loading audio metadata for ${audioFile.name}:`, e);
+                    reject(new Error(`Failed to load metadata for ${audioFile.name}. Check file format.`));
+                };
+
+                tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
+                tempAudio.addEventListener('error', onError);
+
+                tempAudio.src = objectURL;
+                // Note: No need to append to DOM to get duration
+            });
+        }
+
+
+        // --- Main Processing Logic (Modified) ---
+        async function runAllJobs() { // Now async
             if (isProcessing) {
                 console.warn("Processing already in progress.");
                 return;
@@ -410,12 +446,27 @@
             const loaded = await loadFFmpeg();
             if (!loaded) return;
 
-            jobs = []; // Reset jobs array
             const jobSlots = jobsContainer.querySelectorAll('.job-slot');
+            if (jobSlots.length === 0) {
+                alert("Please add at least one job.");
+                return;
+            }
 
-            // 1. Collect and validate job data from UI
-            let hasValidJobs = false;
-            jobSlots.forEach((slot, index) => {
+            // Set UI to processing state EARLY
+            isProcessing = true;
+            startAllButton.disabled = true;
+            addJobButton.disabled = true;
+            document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = true);
+            overallProgressContainer.style.display = 'block';
+            logContainer.style.display = 'none';
+            logElement.textContent = '';
+            overallProgressBar.style.width = '0%';
+            overallProgressBar.textContent = '0%';
+            overallProgressText.textContent = 'Validating jobs and calculating durations...';
+
+
+            // 1. Collect, validate, and calculate duration for job data asynchronously
+            const jobPromises = Array.from(jobSlots).map(async (slot) => { // Use map with async
                 const jobId = slot.dataset.jobId;
                 const imageInput = slot.querySelector('input[name="imageFiles"]');
                 const audioInput = slot.querySelector('input[name="audioFile"]');
@@ -426,108 +477,142 @@
                 const videoEl = slot.querySelector('video');
                 const downloadEl = slot.querySelector('.download-link');
 
-                // Basic validation
-                if (imageInput.files.length === 0) {
-                     updateJobStatus(slot, 'Error', 'No image files selected.');
-                     return; // Skip this job
-                }
-                 if (audioInput.files.length !== 1) {
-                     updateJobStatus(slot, 'Error', 'Exactly one audio file must be selected.');
-                     return; // Skip this job
+                // Reset status before validation
+                updateJobStatus(slot, 'Pending', 'Validating...');
+                videoEl.style.display = 'none';
+                downloadEl.style.display = 'none';
+                 if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
+                     URL.revokeObjectURL(downloadEl.href); // Clean up old blob URL if any
+                     downloadEl.href = '';
                  }
 
-                // --- MODIFICATION START: Handle duration input ---
-                const durationValue = durationInput.value.trim();
-                let imageDurationValue = null; // Default to null (meaning use audio duration)
 
-                if (durationValue !== "") {
-                    const parsedDuration = parseFloat(durationValue);
-                    if (!isNaN(parsedDuration) && parsedDuration > 0) {
-                        imageDurationValue = parsedDuration; // Use the parsed number
-                    } else {
-                        // Invalid number entered (but not empty), default to 5
-                        console.warn(`Job ${jobId}: Invalid duration "${durationValue}", defaulting to 5s.`);
-                        imageDurationValue = 5;
-                        durationInput.value = '5'; // Update UI to show the default used
-                    }
+                // Basic validation
+                if (imageInput.files.length === 0) {
+                    updateJobStatus(slot, 'Error', 'No image files selected.');
+                    return null; // Indicate invalid job
                 }
-                // If durationValue was "", imageDurationValue remains null
-                // --- MODIFICATION END ---
+                if (audioInput.files.length !== 1) {
+                    updateJobStatus(slot, 'Error', 'Exactly one audio file must be selected.');
+                    return null; // Indicate invalid job
+                }
 
-                // Store job data
-                jobs.push({
-                    id: jobId,
-                    slotElement: slot,
-                    imageFiles: Array.from(imageInput.files).sort((a, b) => a.name.localeCompare(b.name)), // Sort images
-                    audioFile: audioInput.files[0],
-                    imageDuration: imageDurationValue, // Store null or the number
-                    outputFormat: formatSelect.value,
-                    statusDiv,
-                    messageDiv,
-                    videoEl,
-                    downloadEl
-                });
-                updateJobStatus(slot, 'Pending', ''); // Reset status for valid jobs
-                hasValidJobs = true;
-            });
+                const imageFiles = Array.from(imageInput.files).sort((a, b) => a.name.localeCompare(b.name));
+                const audioFile = audioInput.files[0];
+                const outputFormat = formatSelect.value;
+                let imageDuration; // This will hold the final duration per image
+                const durationValue = durationInput.value.trim();
 
-            if (!hasValidJobs) {
-                alert("No valid jobs found. Please check your selections in each job slot.");
-                return;
+                try {
+                    if (durationValue === '') {
+                         // Duration is empty - calculate it
+                         updateJobStatus(slot, 'Pending', 'Calculating audio duration...');
+                         const audioDuration = await getAudioDuration(audioFile); // Await the promise
+
+                         if (imageFiles.length > 0) {
+                             imageDuration = audioDuration / imageFiles.length;
+                             console.log(`Job ${jobId}: Calculated image duration: ${imageDuration.toFixed(4)}s (${audioDuration.toFixed(3)}s / ${imageFiles.length} images)`);
+                             if (imageDuration <= 0.01) { // Add a minimum sensible duration check
+                                 throw new Error(`Calculated duration (${imageDuration.toFixed(4)}s) is too short. Check audio length or number of images.`);
+                             }
+                             updateJobStatus(slot, 'Pending', `Auto duration: ${imageDuration.toFixed(3)}s/image`);
+                         } else {
+                             // This case should already be caught by imageFiles.length === 0 check, but good practice
+                              throw new Error('Cannot calculate duration: No images selected.');
+                         }
+                    } else {
+                        // Duration is provided - parse and validate it
+                        imageDuration = parseFloat(durationValue);
+                        if (isNaN(imageDuration) || imageDuration <= 0) {
+                             throw new Error('Invalid image duration provided. Must be a positive number.');
+                        }
+                         updateJobStatus(slot, 'Pending', `User duration: ${imageDuration}s/image`);
+                    }
+
+                    // If we reached here, duration is valid (either parsed or calculated)
+                    return { // Return the job data object
+                        id: jobId,
+                        slotElement: slot,
+                        imageFiles: imageFiles,
+                        audioFile: audioFile,
+                        imageDuration: imageDuration, // Use the determined duration
+                        outputFormat: outputFormat,
+                        statusDiv,
+                        messageDiv,
+                        videoEl,
+                        downloadEl
+                    };
+
+                } catch (error) {
+                    console.error(`Job ${jobId}: Validation/Duration Error - ${error.message}`);
+                    updateJobStatus(slot, 'Error', `Setup failed: ${error.message}`);
+                    return null; // Mark job as invalid
+                }
+            }); // End of map
+
+            // Wait for all validation/duration calculations and filter out invalid jobs
+            const resolvedJobs = await Promise.all(jobPromises);
+            jobs = resolvedJobs.filter(job => job !== null); // Filter out nulls (invalid jobs)
+
+            if (jobs.length === 0) {
+                alert("No valid jobs found to process. Please check errors in each job slot and try again.");
+                // Reset UI from processing state
+                isProcessing = false;
+                startAllButton.disabled = jobSlots.length === 0; // Re-enable based on if slots exist
+                addJobButton.disabled = false;
+                document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = false);
+                overallProgressContainer.style.display = 'none';
+                updateStartButtonState(); // Ensure correct button state
+                return; // Exit early
             }
 
-            // 2. Start Processing
-            isProcessing = true;
-            startAllButton.disabled = true;
-            addJobButton.disabled = true;
-            document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = true);
-            overallProgressContainer.style.display = 'block';
-            logContainer.style.display = 'none'; // Hide log initially
-            logElement.textContent = ''; // Clear log
+            // 2. Start Actual Processing Loop (only valid jobs are in the 'jobs' array now)
+            overallProgressText.textContent = `Starting processing for ${jobs.length} valid job(s)...`;
 
             // 3. Process jobs sequentially
             for (let i = 0; i < jobs.length; i++) {
                 currentJobIndex = i;
                 const job = jobs[i];
 
-                // Update overall progress bar
+                // Update overall progress bar for the start of this job
                 const overallProgress = (i / jobs.length) * 100;
                 overallProgressBar.style.width = `${overallProgress}%`;
                 overallProgressBar.textContent = `${overallProgress.toFixed(0)}%`;
                 overallProgressText.textContent = `Starting Job ${i + 1} of ${jobs.length} (ID: ${job.id})...`;
-                updateJobStatus(job.slotElement, 'Processing', 'Starting...');
+                updateJobStatus(job.slotElement, 'Processing', 'Starting FFmpeg...'); // Update individual job status
 
                 logElement.textContent = `--- Starting Job ${i + 1} (ID: ${job.id}) ---\n`; // Clear log for new job
+                logContainer.style.display = 'block'; // Show log container for this job
 
                 // Process this single job
-                const success = await processSingleJob(job);
+                const success = await processSingleJob(job); // processSingleJob remains largely the same
 
                 if (success) {
-                     updateJobStatus(job.slotElement, 'Success', 'Video created successfully.');
-                     logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) Finished Successfully ---\n`;
+                    // Status and message already set in processSingleJob on success
+                    logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) Finished Successfully ---\n`;
                 } else {
-                     // Error message already set in processSingleJob
-                     logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) FAILED ---\n`;
+                    // Error status/message already set in processSingleJob on failure
+                    logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) FAILED ---\n`;
+                     // Optionally break or continue on error
+                     // break; // Uncomment to stop all processing on first error
                 }
             }
 
             // 4. Finish
             isProcessing = false;
             currentJobIndex = -1;
-            startAllButton.textContent = 'Start All Jobs';
-            startAllButton.disabled = false; // Re-enable based on job count
             addJobButton.disabled = false;
             document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = false);
             overallProgressBar.style.width = '100%';
             overallProgressBar.textContent = '100%';
-            overallProgressText.textContent = `Processing Complete (${jobs.length} jobs attempted).`;
+            overallProgressText.textContent = `Processing Complete (${jobs.length} jobs processed).`;
             updateStartButtonState(); // Final check on start button state
         }
 
-        // --- Process a Single Job ---
+        // --- Process a Single Job (Mostly Unchanged) ---
+        // This function now receives the final, calculated/validated imageDuration
         async function processSingleJob(job) {
-            // Destructure imageDuration correctly
-            const { id, slotElement, imageFiles, audioFile, imageDuration, outputFormat, messageDiv, videoEl, downloadEl } = job;
+            const { id, slotElement, imageFiles, audioFile, imageDuration, outputFormat, statusDiv, messageDiv, videoEl, downloadEl } = job;
             const uniquePrefix = `job${id}_`; // Unique prefix for files in this job
             let inputPattern = '';
             let imageExtension = '.png'; // Default
@@ -539,45 +624,50 @@
 
             try {
                 // --- 1. Write Input Files to FFmpeg FS ---
-                messageDiv.textContent = 'Uploading images...';
+                messageDiv.textContent = `Uploading ${imageFiles.length} images...`;
 
                 // Determine input pattern and write images with unique names
                 const firstImageName = imageFiles[0].name;
-                // Regex to match name, sequence number, and extension
+                // Improved regex to handle various naming (prefix_001.ext, 001.ext, img-1.ext etc.)
                 const nameParts = firstImageName.match(/^(.*?)(\d+)(\.\w+)$/);
+                let startNumber = 1; // Default start number for sequential pattern
 
-                if (nameParts && imageFiles.length > 1) { // Use pattern only if sequence detected and more than one image
-                    const prefix = nameParts[1];
+                if (nameParts) {
+                    const prefix = nameParts[1] || ''; // Handle cases like '001.png' where prefix is empty
                     const numberString = nameParts[2];
                     const suffix = nameParts[3];
                     const padding = numberString.length;
-                    // IMPORTANT: Use the *unique prefix* in the pattern for FFmpeg
+                    // FFmpeg pattern requires the unique job prefix
                     inputPattern = `${uniquePrefix}${prefix}%0${padding}d${suffix}`;
                     imageExtension = suffix;
-                    console.log(`Job ${id}: Detected image sequence pattern: ${inputPattern}`);
+                    startNumber = parseInt(numberString, 10); // Get the starting number if pattern detected
+                    console.log(`Job ${id}: Detected image pattern: ${inputPattern}, starting num: ${startNumber}, padding: ${padding}`);
                 } else {
-                    // Fallback for single image or non-standard naming
-                    imageExtension = getFileExtension(firstImageName);
-                    // Create a simple pattern assuming we'll name them sequentially
-                    inputPattern = `${uniquePrefix}image-%d${imageExtension}`;
-                    console.log(`Job ${id}: Using fallback pattern: ${inputPattern}`);
+                    // Fallback: Use a generic pattern if specific sequence isn't detected
+                    console.warn(`Job ${id}: Could not detect standard sequence naming in '${firstImageName}'. Using fallback pattern.`);
+                     imageExtension = getFileExtension(firstImageName) || '.img'; // Need some extension
+                     // Using %d assumes sequence 1, 2, 3...
+                     inputPattern = `${uniquePrefix}image-%d${imageExtension}`;
+                     startNumber = 1; // Fallback starts at 1
                 }
 
-                // Write images with consistent naming for the pattern
                  for (let i = 0; i < imageFiles.length; i++) {
                      const file = imageFiles[i];
-                     // Generate filename based on the determined pattern structure
-                     let targetFilename = inputPattern.replace('%d', (i + 1)).replace(/%\d*d/, (i + 1)); // Basic replacement
-                     if (nameParts && imageFiles.length > 1) {
-                         const prefix = nameParts[1];
-                         const padding = nameParts[2].length;
-                         const suffix = nameParts[3];
-                         targetFilename = `${uniquePrefix}${prefix}${(i + 1).toString().padStart(padding, '0')}${suffix}`;
+                     // Generate the target filename based on the determined pattern logic
+                     let targetFilename;
+                     const currentNumber = startNumber + i; // Calculate the sequence number for this file
+
+                     if (nameParts) {
+                          const prefix = nameParts[1] || '';
+                          const suffix = nameParts[3];
+                          const padding = nameParts[2].length;
+                          targetFilename = `${uniquePrefix}${prefix}${currentNumber.toString().padStart(padding, '0')}${suffix}`;
                      } else {
-                          targetFilename = `${uniquePrefix}image-${i + 1}${imageExtension}`;
+                          // Fallback uses the generic pattern structure
+                          targetFilename = `${uniquePrefix}image-${currentNumber}${imageExtension}`;
                      }
 
-                     tempImageFilenames.push(targetFilename); // Keep track for cleanup
+                     tempImageFilenames.push(targetFilename);
                      // console.log(`Job ${id}: Writing image ${i + 1}/${imageFiles.length}: ${file.name} as ${targetFilename}`);
                      const data = await readFileAsUint8Array(file);
                      await ffmpegInstance.writeFile(targetFilename, data);
@@ -590,80 +680,61 @@
                 await ffmpegInstance.writeFile(tempAudioFilename, audioData);
 
                 // --- 2. Construct and Execute FFmpeg Command ---
-                 messageDiv.textContent = 'Running conversion...';
+                 messageDiv.textContent = `Running conversion (duration/img: ${imageDuration.toFixed(3)}s)...`;
+                 // Calculate framerate based on the *final* image duration
+                 const effectiveFrameRate = 1 / imageDuration;
 
-                 // --- MODIFICATION START: Build command based on imageDuration ---
-                 const command = [];
+                 const command = [
+                     '-framerate', effectiveFrameRate.toString(),
+                     '-start_number', startNumber.toString(), // Specify start number for sequence
+                     '-i', inputPattern,                // Use the pattern with unique prefix
+                     '-i', tempAudioFilename,           // Use the unique audio filename
+                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p', // Ensure even dimensions and pixel format in filtergraph
+                     '-c:v', 'libx264',                 // H.264 is widely compatible
+                     // '-pix_fmt', 'yuv420p', // Moved format to vf for better compatibility
+                     '-crf', '23',                      // Constant Rate Factor (lower=better quality, larger file)
+                     '-preset', 'medium',              // Encoding speed vs compression
+                     '-c:a', 'aac',                     // AAC is widely compatible
+                     '-b:a', '128k',
+                     '-movflags', '+faststart',         // Good for web playback
+                     '-shortest',                       // Finish encoding when the shortest input stream ends
+                     outputFilename                     // Use the unique output filename
+                 ];
 
-                 if (imageDuration !== null) {
-                     // CASE 1: Specific duration provided
-                     console.log(`Job ${id}: Using specified image duration: ${imageDuration}s`);
-                     const effectiveFrameRate = `1/${imageDuration}`;
-                     command.push(
-                         '-framerate', effectiveFrameRate, // Set image framerate based on duration
-                         '-i', inputPattern // Image sequence input
-                     );
-                 } else {
-                     // CASE 2: Duration box was empty (imageDuration is null)
-                     console.log(`Job ${id}: Using full audio duration (looping images)`);
-                     command.push(
-                         '-stream_loop', '-1', // Loop the image sequence indefinitely
-                         // Optional: add '-r', '25', if default causes issues
-                         '-i', inputPattern // Image sequence input
-                     );
-                 }
-
-                 // Add audio input and common output options
-                 command.push(
-                     '-i', tempAudioFilename, // Audio input
-                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Ensure even dimensions for compatibility
-                     '-c:v', outputFormat === 'mov' ? 'libx264' : 'libx264', // H.264 codec
-                     '-pix_fmt', 'yuv420p', // Pixel format for compatibility
-                     '-crf', '23', // Constant Rate Factor (quality vs size)
-                     '-preset', 'medium', // Encoding speed vs compression
-                     '-c:a', 'aac', // AAC audio codec
-                     '-b:a', '128k', // Audio bitrate
-                     '-shortest', // Finish encoding when the shortest input ends (audio in the loop case, either in the fixed duration case)
-                     outputFilename // Unique output filename
-                 );
-                 // --- MODIFICATION END ---
-
-
-                 console.log(`Job ${id}: Executing FFmpeg command:`, command.join(' '));
-                 await ffmpegInstance.exec(command);
-                 console.log(`Job ${id}: FFmpeg execution finished.`);
+                console.log(`Job ${id}: Executing FFmpeg command:`, ffmpegInstance.commandToString(command)); // Use helper if available
+                await ffmpegInstance.exec(command);
+                console.log(`Job ${id}: FFmpeg execution finished.`);
 
                 // --- 3. Read Output and Display ---
                 messageDiv.textContent = 'Reading output file...';
                 const outputData = await ffmpegInstance.readFile(outputFilename);
-                console.log(`Job ${id}: Output file read successfully (${outputData.length} bytes).`);
+                console.log(`Job ${id}: Output file read successfully (${(outputData.length / 1024 / 1024).toFixed(2)} MB).`);
 
                 const mimeTypeMap = { 'mp4': 'video/mp4', 'mov': 'video/quicktime' };
                 const mimeType = mimeTypeMap[outputFormat] || 'video/mp4';
                 const videoBlob = new Blob([outputData.buffer], { type: mimeType });
                 const videoUrl = URL.createObjectURL(videoBlob);
 
-                 // Revoke previous URL if exists to prevent memory leaks
-                 if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
-                     URL.revokeObjectURL(downloadEl.href);
-                 }
-
+                 // Update UI elements
                 videoEl.src = videoUrl;
                 videoEl.style.display = 'block';
                 downloadEl.href = videoUrl;
                 downloadEl.download = `job${id}_output.${outputFormat}`; // Give a meaningful download name
                 downloadEl.style.display = 'inline-block';
-                messageDiv.textContent = 'Conversion successful!';
+
+                // Final success status for this job
+                 updateJobStatus(slotElement, 'Success', `Video created (${(outputData.length / 1024 / 1024).toFixed(2)} MB)`);
 
                 return true; // Indicate success
 
             } catch (error) {
                 console.error(`Error during conversion for Job ${id}:`, error);
-                updateJobStatus(slotElement, 'Error', `Conversion failed: ${error.message || error}`);
+                updateJobStatus(slotElement, 'Error', `Conversion failed: ${error.message || 'Unknown FFmpeg error'}`);
                 videoEl.style.display = 'none'; // Hide player on error
                 downloadEl.style.display = 'none'; // Hide download on error
-                if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
-                    URL.revokeObjectURL(downloadEl.href); // Clean up potentially created blob URL
+                 if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
+                     URL.revokeObjectURL(downloadEl.href); // Clean up potentially created blob URL
+                     downloadEl.href = '';
                  }
                 return false; // Indicate failure
 
@@ -672,19 +743,12 @@
                 console.log(`Job ${id}: Cleaning up virtual filesystem...`);
                 try {
                     for (const filename of tempImageFilenames) {
-                        // Check if file exists before deleting (optional, prevents warnings if exec failed early)
-                        // if (await ffmpegInstance.exists(filename)) {
-                           await ffmpegInstance.deleteFile(filename);
-                        // }
+                        try { await ffmpegInstance.deleteFile(filename); } catch (e) { /* ignore */ }
                     }
-                     // if (await ffmpegInstance.exists(tempAudioFilename)) {
-                        await ffmpegInstance.deleteFile(tempAudioFilename);
-                     // }
-                     // Delete output only after reading it successfully or if it exists after failure
-                     // if (await ffmpegInstance.exists(outputFilename)) {
-                        await ffmpegInstance.deleteFile(outputFilename);
-                     // }
-                    console.log(`Job ${id}: Virtual filesystem cleanup complete.`);
+                    try { await ffmpegInstance.deleteFile(tempAudioFilename); } catch (e) { /* ignore */ }
+                    // Only delete output if it was successfully read (or maybe always try to delete?)
+                    try { await ffmpegInstance.deleteFile(outputFilename); } catch (e) { /* ignore */ }
+                    console.log(`Job ${id}: Virtual filesystem cleanup attempt complete.`);
                 } catch (cleanupError) {
                     console.warn(`Job ${id}: Error during virtual filesystem cleanup:`, cleanupError);
                     // Don't mark the job as failed just because cleanup failed, but log it.
@@ -697,15 +761,19 @@
         function updateJobStatus(slotElement, statusType, message) {
              const statusDiv = slotElement.querySelector('.job-output .status');
              const messageDiv = slotElement.querySelector('.job-output .message');
-             statusDiv.textContent = `Status: ${statusType}`;
-             statusDiv.className = `status ${statusType.toLowerCase()}`; // Add class for styling
-             messageDiv.textContent = message;
+             if (statusDiv) {
+                 statusDiv.textContent = `Status: ${statusType}`;
+                 statusDiv.className = `status ${statusType.toLowerCase()}`; // Add class for styling
+             }
+             if (messageDiv) {
+                 messageDiv.textContent = message;
+             }
         }
 
         function getFileExtension(filename) {
             const lastDot = filename.lastIndexOf('.');
             if (lastDot === -1) return ''; // No extension
-            return filename.substring(lastDot); // Includes the dot
+            return filename.substring(lastDot).toLowerCase(); // Includes the dot, lowercase
         }
 
 
@@ -716,10 +784,10 @@
             startAllButton.disabled = true; // Disabled until FFmpeg loads and jobs are added
             // Add the first job slot automatically
             addJobSlot();
-             // Attempt to load FFmpeg on page load for faster startup
-             // Don't await here, let it load in the background
+             // Attempt to load FFmpeg on page load for faster startup when user clicks Start
+             // Don't block UI, let it load in the background
              loadFFmpeg().then(loaded => {
-                 if(loaded) updateStartButtonState();
+                 if(loaded) updateStartButtonState(); // Update state once loaded
              });
         });
 
