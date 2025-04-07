@@ -701,7 +701,7 @@
                      outputFilename                     // Use the unique output filename
                  ];
 
-                console.log(`Job ${id}: Executing FFmpeg command:`, ffmpegInstance.commandToString(command)); // Use helper if available
+                console.log(`Job ${id}: Executing FFmpeg command:`, command.join(' ')); // Join the array to form the command string for logging
                 await ffmpegInstance.exec(command);
                 console.log(`Job ${id}: FFmpeg execution finished.`);
 
