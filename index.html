@@ -115,7 +115,7 @@
         let jobCounter = 0;
         let currentJobTotalDuration = 0; // For progress calculation of the current FFmpeg task
 
-        // --- FFmpeg Loading (No changes needed here) ---
+        // --- FFmpeg Loading ---
         async function loadFFmpeg() {
             if (ffmpegInstance) return true; // Already loaded
 
@@ -132,9 +132,9 @@
                 ffmpegInstance.on('log', ({ type, message }) => {
                     // Only add message if it's not already the last message (avoids duplicates)
                      if (!logElement.textContent.endsWith(message + "\n")) {
-                        logElement.textContent += message + "\n";
-                        logElement.scrollTop = logElement.scrollHeight; // Auto-scroll
-                    }
+                         logElement.textContent += message + "\n";
+                         logElement.scrollTop = logElement.scrollHeight; // Auto-scroll
+                     }
 
                     // Parse duration from log for progress calculation *for the current job*
                     const durationMatch = message.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
@@ -152,28 +152,30 @@
                     let percentage = 0;
                     // Time-based progress is more reliable if duration was parsed
                     if (currentJobTotalDuration > 0 && time) {
-                       percentage = Math.min(100, Math.max(0, (time / currentJobTotalDuration) * 100));
+                        percentage = Math.min(100, Math.max(0, (time / currentJobTotalDuration) * 100));
                     } else if (progress) { // Fallback to FFmpeg's reported progress
-                        percentage = Math.min(100, Math.max(0, progress * 100));
+                         percentage = Math.min(100, Math.max(0, progress * 100));
                     }
 
                     if (!isNaN(percentage)) {
-                        currentJobProgressBar.style.width = percentage.toFixed(1) + '%';
-                        currentJobProgressBar.textContent = percentage.toFixed(1) + '%';
-                        progressText.textContent = `Processing current job... (${percentage.toFixed(1)}%)`;
+                         currentJobProgressBar.style.width = percentage.toFixed(1) + '%';
+                         currentJobProgressBar.textContent = percentage.toFixed(1) + '%';
+                         progressText.textContent = `Processing current job... (${percentage.toFixed(1)}%)`;
                     } else {
-                         currentJobProgressBar.style.width = '0%';
-                         currentJobProgressBar.textContent = '0%';
-                         progressText.textContent = 'Processing current job...';
+                          currentJobProgressBar.style.width = '0%';
+                          currentJobProgressBar.textContent = '0%';
+                          progressText.textContent = 'Processing current job...';
                     }
                 });
 
                 // --- Load Core ---
-                 // Adjust paths if you host the files locally
+                // **** ADJUSTED PATHS ****
+                // Load from the same directory as this HTML file.
+                // Ensure ffmpeg-core.js, ffmpeg-core.wasm, and ffmpeg-core.worker.js are present.
                 await ffmpegInstance.load({
-                     coreURL: 'https://unpkg.com/@ffmpeg/ffmpeg-core@0.12.6/dist/umd/ffmpeg-core.js',
-                     wasmURL: 'https://unpkg.com/@ffmpeg/ffmpeg-core@0.12.6/dist/umd/ffmpeg-core.wasm',
-                     // workerURL: 'https://unpkg.com/@ffmpeg/ffmpeg-core@0.12.6/dist/umd/ffmpeg-core.worker.js' // Optional: For multi-threading if supported/needed
+                    coreURL: './ffmpeg-core.js',          // Load from root
+                    wasmURL: './ffmpeg-core.wasm',          // Load from root
+                    workerURL: './ffmpeg-core.worker.js'    // Load from root (if file exists)
                 });
 
 
@@ -365,26 +367,26 @@
                  progressText.textContent = 'Preparing files...';
 
                  try {
-                     await processSingleJob(job, jobIndexDisplay); // Pass the whole job object
-                     updateJobStatus(job.id, 'Complete', 'status-complete');
-                     logElement.textContent += `--- Job ${jobIndexDisplay}/${totalJobs} (ID: ${job.id}) Completed Successfully ---\n`;
-                     completedJobs++;
+                      await processSingleJob(job, jobIndexDisplay); // Pass the whole job object
+                      updateJobStatus(job.id, 'Complete', 'status-complete');
+                      logElement.textContent += `--- Job ${jobIndexDisplay}/${totalJobs} (ID: ${job.id}) Completed Successfully ---\n`;
+                      completedJobs++;
                  } catch (error) {
-                     console.error(`Error processing job ${job.id}:`, error);
-                     const errorMsg = error.message || error.toString();
-                     updateJobStatus(job.id, `Error`, 'status-error', errorMsg);
-                     logElement.textContent += `\n--- ERROR in Job ${jobIndexDisplay}/${totalJobs} (ID: ${job.id}) ---\n${errorMsg}\n----------------------------------\n`;
-                     // Optionally, you could stop the batch here:
-                     // alert(`Processing stopped due to error in Job ${jobIndexDisplay}.`);
-                     // break;
+                      console.error(`Error processing job ${job.id}:`, error);
+                      const errorMsg = error.message || error.toString();
+                      updateJobStatus(job.id, `Error`, 'status-error', errorMsg);
+                      logElement.textContent += `\n--- ERROR in Job ${jobIndexDisplay}/${totalJobs} (ID: ${job.id}) ---\n${errorMsg}\n----------------------------------\n`;
+                      // Optionally, you could stop the batch here:
+                      // alert(`Processing stopped due to error in Job ${jobIndexDisplay}.`);
+                      // break;
                  } finally {
-                     // Update overall progress bar
-                     const overallPercentage = ((i + 1) / totalJobs) * 100;
-                     overallProgressBar.style.width = `${overallPercentage.toFixed(1)}%`;
-                     overallProgressBar.textContent = `${overallPercentage.toFixed(1)}%`;
+                      // Update overall progress bar
+                      const overallPercentage = ((i + 1) / totalJobs) * 100;
+                      overallProgressBar.style.width = `${overallPercentage.toFixed(1)}%`;
+                      overallProgressBar.textContent = `${overallPercentage.toFixed(1)}%`;
 
-                     // Short delay to allow UI updates if needed
-                     await new Promise(resolve => setTimeout(resolve, 100));
+                      // Short delay to allow UI updates if needed
+                      await new Promise(resolve => setTimeout(resolve, 100));
                  }
              }
 
@@ -439,14 +441,14 @@
             let imageInputFilenames = []; // Keep track of files written for cleanup
 
             if (nameParts) {
-                const prefix = nameParts[1];
-                const numberString = nameParts[2];
-                const suffix = nameParts[3];
-                const padding = numberString.length;
-                inputPattern = `${job.id}_${prefix}%0${padding}d${suffix}`;
-                imageExtension = suffix;
-                useStandardPattern = true;
-                console.log(`${jobLogPrefix}Detected image pattern: ${inputPattern}`);
+                 const prefix = nameParts[1];
+                 const numberString = nameParts[2];
+                 const suffix = nameParts[3];
+                 const padding = numberString.length;
+                 inputPattern = `${job.id}_${prefix}%0${padding}d${suffix}`;
+                 imageExtension = suffix;
+                 useStandardPattern = true;
+                 console.log(`${jobLogPrefix}Detected image pattern: ${inputPattern}`);
             } else {
                  console.warn(`${jobLogPrefix}Could not detect standard sequence naming. Using fallback pattern.`);
                  imageExtension = firstImageName.includes('.') ? firstImageName.substring(firstImageName.lastIndexOf('.')) : '.png';
@@ -457,14 +459,14 @@
                 const file = imageFiles[i];
                 let targetFilename;
                  if (useStandardPattern) {
-                     const prefix = nameParts[1];
-                     const suffix = nameParts[3];
-                     const padding = nameParts[2].length;
-                     const seqNumber = i + 1;
-                     targetFilename = `${job.id}_${prefix}${seqNumber.toString().padStart(padding, '0')}${suffix}`;
+                      const prefix = nameParts[1];
+                      const suffix = nameParts[3];
+                      const padding = nameParts[2].length;
+                      const seqNumber = i + 1;
+                      targetFilename = `${job.id}_${prefix}${seqNumber.toString().padStart(padding, '0')}${suffix}`;
                  } else {
-                     const seqNumber = i + 1;
-                     targetFilename = `${job.id}_image-${seqNumber}${imageExtension}`;
+                      const seqNumber = i + 1;
+                      targetFilename = `${job.id}_image-${seqNumber}${imageExtension}`;
                  }
                 const data = await readFileAsUint8Array(file);
                 await ffmpegInstance.writeFile(targetFilename, data);
@@ -542,16 +544,16 @@
             logElement.textContent += `${jobLogPrefix}Cleaning up virtual files...\n`;
             progressText.textContent = 'Cleaning up...';
             try {
-                for (const filename of imageInputFilenames) {
-                     await ffmpegInstance.deleteFile(filename);
-                }
-                await ffmpegInstance.deleteFile(audioInputFilename);
-                await ffmpegInstance.deleteFile(outputFilename);
-                console.log(`${jobLogPrefix}Virtual filesystem cleanup complete for job ${job.id}.`);
-                 logElement.textContent += `${jobLogPrefix}Cleanup complete.\n`;
+                 for (const filename of imageInputFilenames) {
+                       await ffmpegInstance.deleteFile(filename);
+                 }
+                 await ffmpegInstance.deleteFile(audioInputFilename);
+                 await ffmpegInstance.deleteFile(outputFilename);
+                 console.log(`${jobLogPrefix}Virtual filesystem cleanup complete for job ${job.id}.`);
+                  logElement.textContent += `${jobLogPrefix}Cleanup complete.\n`;
             } catch (cleanupError) {
-                console.warn(`${jobLogPrefix}Error during virtual filesystem cleanup for job ${job.id}:`, cleanupError);
-                 logElement.textContent += `${jobLogPrefix}Warning: Cleanup error: ${cleanupError.message}\n`;
+                 console.warn(`${jobLogPrefix}Error during virtual filesystem cleanup for job ${job.id}:`, cleanupError);
+                  logElement.textContent += `${jobLogPrefix}Warning: Cleanup error: ${cleanupError.message}\n`;
             }
         }
 
@@ -576,7 +578,7 @@
 
         window.addEventListener('load', () => {
             // Add one initial job slot
-             addJobSlot();
+              addJobSlot();
             // Enable the start button once the page is loaded
             startButton.disabled = false;
             startButton.textContent = 'Load FFmpeg & Start Processing Batch';
@@ -586,18 +588,18 @@
         outputFormatSelect.addEventListener('change', () => {
              jobs.forEach(job => {
                  if (job.outputUrl && job.status === 'complete') {
-                    const link = document.querySelector(`#${job.id}-output a.download-link`);
-                     if (link) {
-                        const currentName = link.download;
-                        const baseName = currentName.substring(0, currentName.lastIndexOf('.'));
-                         link.download = `${baseName}.${outputFormatSelect.value}`;
-                     }
+                     const link = document.querySelector(`#${job.id}-output a.download-link`);
+                      if (link) {
+                           const currentName = link.download;
+                           const baseName = currentName.substring(0, currentName.lastIndexOf('.'));
+                            link.download = `${baseName}.${outputFormatSelect.value}`;
+                      }
                      const mainListLink = outputListDiv.querySelector(`a[href="${job.outputUrl}"]`);
-                     if(mainListLink) {
-                         const currentName = mainListLink.download;
-                        const baseName = currentName.substring(0, currentName.lastIndexOf('.'));
-                         mainListLink.download = `${baseName}.${outputFormatSelect.value}`;
-                    }
+                      if(mainListLink) {
+                           const currentName = mainListLink.download;
+                           const baseName = currentName.substring(0, currentName.lastIndexOf('.'));
+                            mainListLink.download = `${baseName}.${outputFormatSelect.value}`;
+                      }
                  }
              });
         });
