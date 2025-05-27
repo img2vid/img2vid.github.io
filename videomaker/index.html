@@ -363,6 +363,7 @@
     <script src="./FileSaver.min.js"></script>
     <script src="./ffmpeg.min.js"></script>
     <script>
+        const { FFmpeg } = FFmpeg;
         let ffmpegInstance = null;
         let processedVideos = [];
         let audioFiles = [];
@@ -701,7 +702,7 @@
                     outputFilename
                 ];
 
-                await ffmpegInstance.run(...command);
+                await ffmpegInstance.exec(command);
 
                 // Read output
                 const outputData = await ffmpegInstance.readFile(outputFilename);
