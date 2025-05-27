@@ -3,547 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter Splitter & Zip Creator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <title>Chapter Extractor & Zipper</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
         }
-
         .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: auto;
         }
-
         h1 {
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #0056b3;
         }
-
-        .upload-area {
-            border: 3px dashed #667eea;
-            border-radius: 15px;
-            padding: 40px;
-            text-align: center;
-            margin-bottom: 30px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: rgba(102, 126, 234, 0.05);
+        input[type="file"] {
+            display: block;
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: calc(100% - 22px); /* Adjust width considering padding */
         }
-
-        .upload-area:hover {
-            border-color: #764ba2;
-            background: rgba(118, 75, 162, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .upload-area.dragover {
-            border-color: #764ba2;
-            background: rgba(118, 75, 162, 0.2);
-            transform: scale(1.02);
-        }
-
-        .upload-icon {
-            font-size: 3em;
-            color: #667eea;
-            margin-bottom: 20px;
-        }
-
-        .upload-text {
-            font-size: 1.2em;
-            color: #555;
-            margin-bottom: 15px;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .btn {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
             color: white;
             border: none;
-            padding: 15px 30px;
-            border-radius: 50px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 1.1em;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            font-size: 16px;
+            transition: background-color 0.3s ease;
         }
-
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        button:hover {
+            background-color: #0056b3;
         }
-
-        .btn:disabled {
-            background: #ccc;
+        button:disabled {
+            background-color: #cccccc;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
         }
-
-        .file-info {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 20px;
-            border-radius: 15px;
-            margin: 20px 0;
-            border-left: 5px solid #667eea;
-        }
-
-        .file-name {
-            font-weight: 600;
-            color: #333;
-            font-size: 1.1em;
-        }
-
-        .file-size {
-            color: #666;
-            margin-top: 5px;
-        }
-
-        .progress-container {
-            margin: 20px 0;
-            display: none;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            width: 0%;
-            transition: width 0.3s ease;
-            border-radius: 10px;
-        }
-
-        .progress-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-weight: 600;
-            color: #333;
-            font-size: 0.9em;
-        }
-
-        .chapter-preview {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
-            display: none;
-        }
-
-        .chapter-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 15px;
-        }
-
-        .chapter-item {
+        #status {
+            margin-top: 20px;
             padding: 10px;
-            margin: 5px 0;
-            background: white;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            background-color: #e9ecef;
+            border-radius: 4px;
+            text-align: center;
+            font-style: italic;
+            color: #555;
+            min-height: 1.6em; /* Prevent layout shift */
         }
-
-        .chapter-title {
-            font-weight: 600;
-            color: #333;
+         #downloadLink {
+            display: block;
+            margin-top: 15px;
+            text-align: center;
+            font-weight: bold;
+            color: #28a745;
+            text-decoration: none;
         }
-
-        .chapter-info {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-        }
-
-        .error {
-            background: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            display: none;
-        }
-
-        .success {
-            background: #efe;
-            border: 1px solid #cfc;
-            color: #363;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            display: none;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
-        .processing {
-            animation: pulse 2s infinite;
-        }
+         #downloadLink:hover {
+             text-decoration: underline;
+         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
+
     <div class="container">
-        <h1>📚 Chapter Splitter & Zip Creator</h1>
-        
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📄</div>
-            <div class="upload-text">Drop your text file here or click to browse</div>
-            <input type="file" id="fileInput" class="file-input" accept=".txt">
-            <button class="btn" onclick="document.getElementById('fileInput').click()">
-                Choose File
-            </button>
-        </div>
+        <h1>📖 Chapter Extractor & Zipper 📁</h1>
+        <p>Upload your book as a single .txt file. This tool will automatically detect chapters (e.g., "CHAPTER 1", "Chapter II") and create a downloadable ZIP archive containing each chapter as a separate .txt file.</p>
 
-        <div class="file-info" id="fileInfo" style="display: none;">
-            <div class="file-name" id="fileName"></div>
-            <div class="file-size" id="fileSize"></div>
-        </div>
+        <input type="file" id="fileInput" accept=".txt">
+        <button id="processButton">Process and Download ZIP</button>
 
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-                <div class="progress-text" id="progressText">Processing...</div>
-            </div>
-        </div>
+        <div id="status">Upload a file and click the button to start.</div>
 
-        <div class="chapter-preview" id="chapterPreview">
-            <h3>📖 Chapters Found:</h3>
-            <div class="chapter-list" id="chapterList"></div>
-            <button class="btn" id="downloadBtn" onclick="downloadZip()">
-                📦 Download Chapters as ZIP
-            </button>
-        </div>
-
-        <div class="error" id="errorMsg"></div>
-        <div class="success" id="successMsg"></div>
     </div>
 
     <script>
-        let currentFile = null;
-        let chapters = [];
-        let zip = new JSZip();
+        document.getElementById('processButton').addEventListener('click', handleFileProcessing);
 
-        // Roman numeral conversion
-        const romanNumerals = {
-            'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10,
-            'XI': 11, 'XII': 12, 'XIII': 13, 'XIV': 14, 'XV': 15, 'XVI': 16, 'XVII': 17, 'XVIII': 18, 'XIX': 19, 'XX': 20,
-            'XXI': 21, 'XXII': 22, 'XXIII': 23, 'XXIV': 24, 'XXV': 25, 'XXVI': 26, 'XXVII': 27, 'XXVIII': 28, 'XXIX': 29, 'XXX': 30,
-            'XXXI': 31, 'XXXII': 32, 'XXXIII': 33, 'XXXIV': 34, 'XXXV': 35, 'XXXVI': 36, 'XXXVII': 37, 'XXXVIII': 38, 'XXXIX': 39, 'XL': 40,
-            'XLI': 41, 'XLII': 42, 'XLIII': 43, 'XLIV': 44, 'XLV': 45, 'XLVI': 46, 'XLVII': 47, 'XLVIII': 48, 'XLIX': 49, 'L': 50
-        };
+        function handleFileProcessing() {
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('status');
+            const processButton = document.getElementById('processButton');
 
-        function isValidRomanNumeral(str) {
-            return romanNumerals.hasOwnProperty(str.toUpperCase());
-        }
-
-        function romanToArabic(roman) {
-            return romanNumerals[roman.toUpperCase()] || 0;
-        }
-
-        // File upload handling
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        function handleFile(file) {
-            if (!file.name.toLowerCase().endsWith('.txt')) {
-                showError('Please select a .txt file');
+            if (fileInput.files.length === 0) {
+                statusDiv.textContent = '⚠️ Please select a .txt file first!';
+                statusDiv.style.color = 'red';
                 return;
             }
 
-            currentFile = file;
-            showFileInfo(file);
-            processFile(file);
-        }
-
-        function showFileInfo(file) {
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileSize').textContent = `Size: ${(file.size / 1024).toFixed(2)} KB`;
-            document.getElementById('fileInfo').style.display = 'block';
-        }
-
-        function processFile(file) {
-            showProgress();
+            const file = fileInput.files[0];
             const reader = new FileReader();
-            
+
+            statusDiv.textContent = 'Reading file... ⏳';
+            statusDiv.style.color = '#555';
+            processButton.disabled = true;
+
             reader.onload = function(e) {
-                const text = e.target.result;
-                // Small delay to ensure progress bar is visible
-                setTimeout(() => {
-                    splitIntoChapters(text);
-                }, 100);
+                try {
+                    const text = e.target.result;
+                    statusDiv.textContent = 'Processing chapters... ⚙️';
+                    processAndZip(text, file.name);
+                } catch (error) {
+                    statusDiv.textContent = `❌ An error occurred: ${error.message}`;
+                    statusDiv.style.color = 'red';
+                    console.error("Processing Error:", error); // Log error to console
+                    processButton.disabled = false;
+                }
             };
-            
+
             reader.onerror = function() {
-                showError('Error reading file');
-                hideProgress();
+                statusDiv.textContent = '❌ Error reading the file.';
+                statusDiv.style.color = 'red';
+                processButton.disabled = false;
             };
-            
+
             reader.readAsText(file);
         }
 
-        function splitIntoChapters(text) {
-            // Enhanced regex to match various chapter formats
-            const chapterRegex = /^(\s*)(chapter|ch\.?)\s*([IVXLCDM]+|\d+)(?:\s*[-.:]\s*.*?)?$/gmi;
-            
-            const lines = text.split('\n');
-            chapters = [];
-            let currentChapter = null;
-            let chapterNumber = 0;
+        function processAndZip(text, originalFileName) {
+            const statusDiv = document.getElementById('status');
+            const processButton = document.getElementById('processButton');
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                const match = line.match(chapterRegex);
-                
-                if (match) {
-                    // Save previous chapter if exists
-                    if (currentChapter) {
-                        chapters.push(currentChapter);
-                    }
-                    
-                    chapterNumber++;
-                    const chapterIdentifier = match[3];
-                    let displayNumber = chapterNumber;
-                    
-                    // Check if it's a Roman numeral and validate it properly
-                    if (isValidRomanNumeral(chapterIdentifier)) {
-                        displayNumber = romanToArabic(chapterIdentifier);
-                    } else if (!isNaN(parseInt(chapterIdentifier))) {
-                        displayNumber = parseInt(chapterIdentifier);
-                    }
-                    
-                    currentChapter = {
-                        title: line,
-                        content: line + '\n',
-                        number: displayNumber,
-                        originalNumber: chapterIdentifier,
-                        startLine: i + 1
-                    };
-                } else if (currentChapter) {
-                    currentChapter.content += lines[i] + '\n';
+            // Regex: Positive lookahead `(?=...)` splits *before* the match.
+            // Uses non-capturing groups `(?:...)` inside to avoid inserting `undefined` during split.
+            const chapterRegex = /(?=^\s*(?:CHAPTER|Chapter|chapter)\s+(?:(?:\d+)|(?:M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})))\s*$)/gim;
+
+            const parts = text.split(chapterRegex)
+                             .map(part => part ? part.trim() : "") // Trim safely
+                             .filter(part => part.length > 0); // Remove empty strings
+
+            if (parts.length === 0) {
+                 statusDiv.textContent = '⚠️ No content or chapters found. Please check your file.';
+                 statusDiv.style.color = 'orange';
+                 processButton.disabled = false;
+                 return;
+            }
+
+            const zip = new JSZip();
+            let chapterCount = 0;
+            let chaptersToProcess = [];
+
+            // Regex to *test* if a string *is* a chapter heading's first line.
+            const isChapterRegex = /^\s*(?:CHAPTER|Chapter|chapter)\s+(?:(?:\d+)|(?:M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})))\s*$/im;
+
+            // Check if the first part starts with a chapter heading
+            const firstPartIsChapter = isChapterRegex.test(parts[0].split('\n')[0].trim());
+
+            if (!firstPartIsChapter && parts.length > 0) {
+                const introContent = parts.shift(); // Remove the intro part
+                zip.file("Introduction.txt", introContent);
+                chapterCount++;
+            }
+
+            chaptersToProcess = parts; // The rest (or all) are chapters
+
+            if (chaptersToProcess.length === 0 && chapterCount === 0) {
+                 statusDiv.textContent = '⚠️ No chapters found. Please check your file format.';
+                 statusDiv.style.color = 'orange';
+                 processButton.disabled = false;
+                 return;
+            }
+
+            chaptersToProcess.forEach((chapterText, index) => {
+                // Should already be a non-empty string due to map/filter, but check again.
+                if (!chapterText) return;
+
+                const firstLine = chapterText.split('\n')[0].trim();
+
+                // Regex to *extract* the ID (number or numeral) - needs a capturing group.
+                const idMatch = firstLine.match(/^\s*(?:CHAPTER|Chapter|chapter)\s+((?:\d+)|(?:M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})))\s*$/i);
+
+                let chapterId;
+                if (idMatch && idMatch[1]) {
+                    chapterId = idMatch[1]; // Use the captured ID (group 1)
+                } else {
+                   console.warn(`Could not extract ID from: "${firstLine}". Using index.`);
+                   // Fallback - use a generic name
+                   chapterId = `Unknown_${index + 1}`;
                 }
-            }
-            
-            // Add the last chapter
-            if (currentChapter) {
-                chapters.push(currentChapter);
-            }
 
-            if (chapters.length === 0) {
-                showError('No chapters found. Make sure your text contains chapter headings like "Chapter 1", "Chapter I", etc.');
-                hideProgress();
+                const fileName = `Chapter_${chapterId.replace(/\s+/g, '_')}.txt`; // Sanitize filename
+
+                zip.file(fileName, chapterText);
+                chapterCount++;
+            });
+
+             if (chapterCount === 0) {
+                statusDiv.textContent = '⚠️ Could not process any chapters, even after splitting.';
+                statusDiv.style.color = 'orange';
+                processButton.disabled = false;
                 return;
             }
 
-            createZipFile();
-            displayChapters();
-            hideProgress();
-            showSuccess(`Successfully found ${chapters.length} chapters!`);
+            statusDiv.textContent = `Found and added ${chapterCount} sections. Zipping... 📦`;
+
+            zip.generateAsync({ type: "blob" })
+                .then(function(content) {
+                    const baseFileName = originalFileName.replace(/\.[^/.]+$/, ""); // Remove extension
+                    saveAs(content, `${baseFileName}_chapters.zip`); // Using FileSaver.js
+                    statusDiv.textContent = `✅ Success! Your download should start shortly.`;
+                    statusDiv.style.color = 'green';
+                    processButton.disabled = false;
+                })
+                .catch(function(err) {
+                     statusDiv.textContent = `❌ Zipping failed: ${err.message}`;
+                     statusDiv.style.color = 'red';
+                     console.error("Zipping Error:", err);
+                     processButton.disabled = false;
+                });
         }
 
-        function createZipFile() {
-            zip = new JSZip();
-            
-            chapters.forEach((chapter, index) => {
-                const filename = `Chapter_${String(chapter.number).padStart(2, '0')}.txt`;
-                zip.file(filename, chapter.content.trim());
-            });
-        }
-
-        function displayChapters() {
-            const chapterList = document.getElementById('chapterList');
-            chapterList.innerHTML = '';
-            
-            chapters.forEach((chapter, index) => {
-                const chapterDiv = document.createElement('div');
-                chapterDiv.className = 'chapter-item';
-                
-                const titleDiv = document.createElement('div');
-                titleDiv.className = 'chapter-title';
-                titleDiv.textContent = chapter.title;
-                
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'chapter-info';
-                const wordCount = chapter.content.split(/\s+/).length;
-                infoDiv.textContent = `Words: ${wordCount} | Lines: ${chapter.content.split('\n').length}`;
-                
-                chapterDiv.appendChild(titleDiv);
-                chapterDiv.appendChild(infoDiv);
-                chapterList.appendChild(chapterDiv);
-            });
-            
-            document.getElementById('chapterPreview').style.display = 'block';
-        }
-
-        async function downloadZip() {
-            if (chapters.length === 0) {
-                showError('No chapters to download');
-                return;
-            }
-
-            try {
-                const downloadBtn = document.getElementById('downloadBtn');
-                downloadBtn.disabled = true;
-                downloadBtn.textContent = '📦 Creating ZIP...';
-                downloadBtn.classList.add('processing');
-
-                const content = await zip.generateAsync({type: 'blob'});
-                
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(content);
-                
-                const baseName = currentFile.name.replace('.txt', '');
-                link.download = `${baseName}_Chapters.zip`;
-                
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                URL.revokeObjectURL(link.href);
-                
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = '📦 Download Chapters as ZIP';
-                downloadBtn.classList.remove('processing');
-                
-                showSuccess('ZIP file downloaded successfully!');
-            } catch (error) {
-                showError('Error creating ZIP file: ' + error.message);
-                
-                const downloadBtn = document.getElementById('downloadBtn');
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = '📦 Download Chapters as ZIP';
-                downloadBtn.classList.remove('processing');
-            }
-        }
-
-        function showProgress() {
-            document.getElementById('progressContainer').style.display = 'block';
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 15 + 5; // Slower, more consistent progress
-                if (progress > 85) {
-                    progress = 85; // Stop at 85% to wait for completion
-                    clearInterval(interval);
-                }
-                
-                progressFill.style.width = progress + '%';
-                progressText.textContent = `Processing... ${Math.round(progress)}%`;
-            }, 150);
-            
-            // Store interval for cleanup
-            window.progressInterval = interval;
-        }
-
-        function hideProgress() {
-            // Clear any running interval
-            if (window.progressInterval) {
-                clearInterval(window.progressInterval);
-                window.progressInterval = null;
-            }
-            
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            // Complete the progress bar
-            progressFill.style.width = '100%';
-            progressText.textContent = 'Complete!';
-            
-            // Hide after showing completion
-            setTimeout(() => {
-                document.getElementById('progressContainer').style.display = 'none';
-                progressFill.style.width = '0%';
-                progressText.textContent = 'Processing...';
-            }, 1500);
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMsg');
-            errorDiv.textContent = '❌ ' + message;
-            errorDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        function showSuccess(message) {
-            const successDiv = document.getElementById('successMsg');
-            successDiv.textContent = '✅ ' + message;
-            successDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                successDiv.style.display = 'none';
-            }, 5000);
-        }
     </script>
 </body>
 </html>
