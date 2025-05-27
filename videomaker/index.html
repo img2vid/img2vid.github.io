@@ -4,55 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio ZIP + Image to Videos Converter</title>
-    <script src="./jszip.min.js"></script>
-    <script src="./ffmpeg.min.js"></script> <style>
+    <script src="./jszip.min.js"></script> <script src="./ffmpeg.min.js"></script> 
+    <style>
         body {
             font-family: 'Inter', sans-serif;
             padding: 20px;
-            background-color: #f0f2f5; /* Softer background */
+            background-color: #f0f2f5;
             color: #333;
             line-height: 1.6;
             display: flex;
             justify-content: center;
-            align-items: flex-start; /* Align to top for long content */
+            align-items: flex-start;
             min-height: 100vh;
         }
         .container {
             width: 100%;
-            max-width: 700px; /* Optimized width */
+            max-width: 700px;
             margin: 20px;
             background: #ffffff;
             padding: 30px;
-            border-radius: 12px; /* Softer radius */
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1); /* More pronounced shadow */
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #1a202c; /* Darker heading */
+            color: #1a202c;
             text-align: center;
             margin-bottom: 25px;
-            font-size: 1.8em; /* Larger title */
+            font-size: 1.8em;
         }
         label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600; /* Bolder labels */
-            color: #4a5568; /* Label color */
+            font-weight: 600;
+            color: #4a5568;
         }
         input[type="file"], select {
             display: block;
             width: 100%;
-            padding: 10px 12px; /* Comfortable padding */
-            margin-bottom: 20px; /* More space */
-            border: 1px solid #cbd5e0; /* Softer border */
-            border-radius: 6px; /* Softer radius */
+            padding: 10px 12px;
+            margin-bottom: 20px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
             box-sizing: border-box;
             font-size: 0.95em;
-            background-color: #f7fafc; /* Light input background */
+            background-color: #f7fafc;
         }
         input[type="file"]::-webkit-file-upload-button {
             padding: 10px 15px;
             border: none;
-            background-color: #4299e1; /* Tailwind blue-500 */
+            background-color: #4299e1;
             color: white;
             border-radius: 6px;
             cursor: pointer;
@@ -61,63 +61,63 @@
             font-weight: 500;
         }
         input[type="file"]::-webkit-file-upload-button:hover {
-            background-color: #2b6cb0; /* Tailwind blue-700 */
+            background-color: #2b6cb0;
         }
         button {
-            padding: 12px 20px; /* Larger buttons */
+            padding: 12px 20px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-size: 1em;
-            font-weight: 600; /* Bolder button text */
+            font-weight: 600;
             transition: background-color 0.3s ease, box-shadow 0.2s ease;
-            margin-top: 10px; /* Space above button */
-            width: 100%; /* Full width button */
+            margin-top: 10px;
+            width: 100%;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         button.primary {
-            background-color: #48bb78; /* Tailwind green-500 */
+            background-color: #48bb78;
             color: white;
         }
         button.primary:hover {
-            background-color: #38a169; /* Tailwind green-600 */
+            background-color: #38a169;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         button:disabled {
-            background-color: #a0aec0; /* Tailwind gray-500 */
-            color: #e2e8f0; /* Lighter text for disabled */
+            background-color: #a0aec0;
+            color: #e2e8f0;
             cursor: not-allowed;
             box-shadow: none;
         }
-        #progress-container, #log-container, #output-zip-container {
+        #progress-container, #log-container, #output-videos-container { /* Updated ID */
             margin-top: 25px;
             padding: 20px;
-            border: 1px solid #e2e8f0; /* Softer border */
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
-            background-color: #f7fafc; /* Light background for these sections */
+            background-color: #f7fafc;
         }
-        #progress-container h2, #log-container h2, #output-zip-container h2 {
+        #progress-container h2, #log-container h2, #output-videos-container h2 { /* Updated ID */
              margin-top: 0;
              margin-bottom: 15px;
-             color: #2d3748; /* Darker section titles */
+             color: #2d3748;
              font-size: 1.25em;
              border-bottom: 1px solid #e2e8f0;
              padding-bottom: 10px;
         }
         #progress-bar-container {
             width: 100%;
-            background-color: #e2e8f0; /* Tailwind gray-300 */
+            background-color: #e2e8f0;
             border-radius: 6px;
             overflow: hidden;
             margin-bottom: 10px;
-            height: 24px; /* Taller progress bar */
+            height: 24px;
         }
         #progressBar {
             width: 0%;
             height: 100%;
-            background-color: #4299e1; /* Tailwind blue-500 */
+            background-color: #4299e1;
             text-align: center;
-            line-height: 24px; /* Vertically center text */
+            line-height: 24px;
             color: white;
             font-size: 0.85em;
             font-weight: 600;
@@ -125,7 +125,7 @@
         }
         #progress-text {
             font-size: 0.95em;
-            color: #4a5568; /* Tailwind gray-700 */
+            color: #4a5568;
             text-align: center;
         }
         #log {
@@ -137,35 +137,36 @@
             font-size: 0.85em;
             background-color: #ffffff;
             padding: 15px;
-            border: 1px solid #e2e8f0; /* Softer border */
+            border: 1px solid #e2e8f0;
             border-radius: 6px;
-            color: #2d3748; /* Darker log text */
+            color: #2d3748;
         }
         a.download-link {
-            display: inline-block;
+            display: block; /* Changed to block for individual links */
             margin-top: 10px;
+            margin-bottom: 10px; /* Added margin bottom */
             padding: 10px 18px;
-            background-color: #48bb78; /* Tailwind green-500 */
+            background-color: #48bb78;
             color: white;
             text-decoration: none;
             border-radius: 6px;
             font-size: 0.95em;
             font-weight: 600;
             transition: background-color 0.3s ease;
+            text-align: center; /* Center text in button-like link */
         }
         a.download-link:hover {
-            background-color: #38a169; /* Tailwind green-600 */
+            background-color: #38a169;
         }
         .file-info {
             font-size: 0.8em;
-            color: #718096; /* Tailwind gray-600 */
-            margin-top: -15px; /* Closer to input */
+            color: #718096;
+            margin-top: -15px;
             margin-bottom: 15px;
         }
         .hidden {
             display: none;
         }
-         /* Message Box Styles */
         .message-box-overlay {
             position: fixed;
             top: 0;
@@ -197,14 +198,14 @@
             padding: 8px 16px;
             border-radius: 5px;
             cursor: pointer;
-            width: auto; /* Not full width */
+            width: auto;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Audio ZIP + Image to Videos Converter</h1>
-        <p>Upload a ZIP file containing your audio tracks and a single image. Videos will be created for each audio track using the image, then bundled into a downloadable ZIP.</p>
+        <p>Upload a ZIP file containing your audio tracks and a single image. Videos will be created for each audio track using the image and made available for individual download.</p>
 
         <div>
             <label for="audioZipInput">Select Audio ZIP File:</label>
@@ -223,9 +224,8 @@
             <select id="outputFormatSelect">
                 <option value="mp4" selected>MP4 (H.264/AAC)</option>
                 <option value="mov">MOV (H.264/AAC)</option>
-                </select>
+            </select>
         </div>
-
 
         <button id="generateButton" class="primary" disabled>Load FFmpeg & Generate</button>
 
@@ -242,21 +242,14 @@
             <pre id="log"></pre>
         </div>
 
-        <div id="output-zip-container" class="hidden">
-            <h2>Download Output</h2>
-            <p>All generated videos have been bundled into a single ZIP file.</p>
-            <a id="downloadZipLink" class="download-link" download="generated_videos.zip">Download Videos ZIP</a>
-        </div>
+        <div id="output-videos-container" class="hidden"> <h2>Download Generated Videos</h2> </div>
     </div>
 
     <script>
-        // It's assumed that your ./ffmpeg.min.js provides FFmpegWASM global
-        // This is typical for @ffmpeg/ffmpeg v0.10.x
-        const { FFmpeg: FFmpegClass } = FFmpegWASM; // Destructure FFmpeg class
+        const { FFmpeg: FFmpegClass } = FFmpegWASM;
         let ffmpegInstance = null;
         let isProcessing = false;
 
-        // --- DOM Elements ---
         const audioZipInput = document.getElementById('audioZipInput');
         const imageInput = document.getElementById('imageInput');
         const outputFormatSelect = document.getElementById('outputFormatSelect');
@@ -269,24 +262,18 @@
         const logContainer = document.getElementById('log-container');
         const logElement = document.getElementById('log');
         
-        const outputZipContainer = document.getElementById('output-zip-container');
-        const downloadZipLink = document.getElementById('downloadZipLink');
+        const outputVideosContainer = document.getElementById('output-videos-container'); // Updated variable name
 
-        // --- Custom Alert ---
         function showMessage(message) {
             const overlay = document.createElement('div');
             overlay.className = 'message-box-overlay';
-            
             const content = document.createElement('div');
             content.className = 'message-box-content';
-            
             const text = document.createElement('p');
             text.textContent = message;
-            
             const closeButton = document.createElement('button');
             closeButton.textContent = 'OK';
             closeButton.onclick = () => overlay.remove();
-            
             content.appendChild(text);
             content.appendChild(closeButton);
             overlay.appendChild(content);
@@ -294,43 +281,29 @@
             closeButton.focus();
         }
 
-
-        // --- FFmpeg Loading ---
         async function loadFFmpeg() {
             if (ffmpegInstance) return true;
-
             generateButton.textContent = 'Loading FFmpeg Core...';
             generateButton.disabled = true;
             console.log('Creating FFmpeg instance...');
-
             try {
-                // Use the destructured FFmpegClass
                 ffmpegInstance = new FFmpegClass(); 
                 ffmpegInstance.on('log', ({ type, message }) => {
-                    if (isProcessing) { // Only show log during active processing
+                    if (isProcessing) {
                         console.log(`[FFmpeg] [${type}] ${message}`);
                         logElement.textContent += message + "\n";
                         logElement.scrollTop = logElement.scrollHeight;
                     }
                 });
-
                 ffmpegInstance.on('progress', ({ progress, time }) => {
                      if (isProcessing && progress && typeof progress === 'number') {
                         const currentVideoProgress = Math.min(100, Math.max(0, progress * 100));
                         console.log(`FFmpeg task progress: ${currentVideoProgress.toFixed(1)}%`);
                     }
                 });
-
-                // For @ffmpeg/ffmpeg v0.10.x, 'corePath' is used.
-                // Ensure './ffmpeg-core.js' is the correct path to the core JS file
-                // compatible with your ffmpeg.min.js (v0.10.x) and its corresponding WASM file.
-                // The WASM file is usually loaded by the core JS itself.
-                await ffmpegInstance.load({
-                    corePath: './ffmpeg-core.js' 
-                });
-
+                await ffmpegInstance.load({ corePath: './ffmpeg-core.js' });
                 console.log('FFmpeg core loaded successfully.');
-                generateButton.textContent = 'Generate Videos & ZIP';
+                generateButton.textContent = 'Generate Videos'; // Updated button text
                 updateGenerateButtonState(); 
                 return true;
             } catch (error) {
@@ -348,11 +321,10 @@
             if (ffmpegInstance && !isProcessing) {
                 generateButton.disabled = !(audioFile && imageFile);
             } else if (!ffmpegInstance) {
-                 generateButton.disabled = true; // Keep disabled if FFmpeg not loaded
+                 generateButton.disabled = true;
             }
         }
 
-        // --- File Reading Helpers ---
         function readFileAsUint8Array(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -362,7 +334,7 @@
             });
         }
 
-        function getAudioDuration(audioFile) { // audioFile is a File object
+        function getAudioDuration(audioFile) {
             return new Promise((resolve, reject) => {
                 if (!audioFile || !audioFile.type.startsWith('audio/')) {
                     return reject(new Error("Invalid or missing audio file for duration check."));
@@ -370,7 +342,6 @@
                 const tempAudio = document.createElement('audio');
                 const objectURL = URL.createObjectURL(audioFile);
                 tempAudio.preload = 'metadata';
-
                 const cleanup = () => {
                     tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
                     tempAudio.removeEventListener('error', onError);
@@ -390,7 +361,6 @@
                     console.error(`Error loading audio metadata for ${audioFile.name}:`, e);
                     reject(new Error(`Failed to load metadata for ${audioFile.name}. Check file format or content.`));
                 };
-
                 tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
                 tempAudio.addEventListener('error', onError);
                 tempAudio.src = objectURL;
@@ -400,7 +370,7 @@
         function getFileExtension(filename) {
             const lastDot = filename.lastIndexOf('.');
             if (lastDot === -1) return '';
-            return filename.substring(lastDot).toLowerCase(); // Includes the dot
+            return filename.substring(lastDot).toLowerCase();
         }
         
         function getFilenameWithoutExtension(filename) {
@@ -409,9 +379,7 @@
             return filename.substring(0, lastDot);
         }
 
-
-        // --- Main Processing Logic ---
-        async function generateAndZipVideos() {
+        async function generateAndZipVideos() { // Function name kept for consistency, though zipping is removed
             if (isProcessing) {
                 showMessage("Processing is already in progress.");
                 return;
@@ -432,31 +400,30 @@
 
             progressContainer.classList.remove('hidden');
             logContainer.classList.remove('hidden');
-            outputZipContainer.classList.add('hidden');
+            outputVideosContainer.innerHTML = ''; // Clear previous download links
+            outputVideosContainer.classList.add('hidden'); // Hide until videos are ready
+
             logElement.textContent = '';
             progressBar.style.width = '0%';
             progressBar.textContent = '0%';
             progressText.textContent = 'Starting...';
 
             const outputVideoFormat = outputFormatSelect.value;
-            const allGeneratedVideos = []; // To store { name: string, data: Uint8Array }
+            let videosGeneratedCount = 0;
 
             try {
-                // 1. Read the single image
                 progressText.textContent = 'Reading image file...';
                 const imageFile = imageInput.files[0];
-                const imageExtension = getFileExtension(imageFile.name) || '.png'; // Default if no ext
+                const imageExtension = getFileExtension(imageFile.name) || '.png';
                 const imageFilenameInFS = `static_image${imageExtension}`;
                 const imageData = await readFileAsUint8Array(imageFile);
-                // For v0.10.x, use FS method for writing files
                 ffmpegInstance.FS('writeFile', imageFilenameInFS, imageData);
                 logElement.textContent += `Image "${imageFile.name}" written to virtual FS as "${imageFilenameInFS}".\n`;
 
-                // 2. Unzip audio files
                 progressText.textContent = 'Extracting audio files from ZIP...';
                 logElement.textContent += 'Reading audio ZIP...\n';
                 const zipFile = audioZipInput.files[0];
-                const jszip = new JSZip();
+                const jszip = new JSZip(); // JSZip is still used for unzipping the input
                 const zip = await jszip.loadAsync(zipFile);
                 
                 const audioFileEntries = [];
@@ -472,15 +439,14 @@
                 }
                 logElement.textContent += `Found ${audioFileEntries.length} audio file(s) in ZIP.\n`;
 
-                // 3. Process each audio file
                 for (let i = 0; i < audioFileEntries.length; i++) {
                     const audioEntry = audioFileEntries[i];
-                    const originalAudioFilename = audioEntry.name.split('/').pop(); // Get basename
+                    const originalAudioFilename = audioEntry.name.split('/').pop();
                     const audioData = await audioEntry.async('uint8array');
                     
-                    const currentProgress = ((i / audioFileEntries.length) * 100).toFixed(0);
-                    progressBar.style.width = `${currentProgress}%`;
-                    progressBar.textContent = `${currentProgress}%`;
+                    const currentOverallProgress = (((i) / audioFileEntries.length) * 100).toFixed(0);
+                    progressBar.style.width = `${currentOverallProgress}%`;
+                    progressBar.textContent = `${currentOverallProgress}%`;
                     progressText.textContent = `Processing video ${i + 1} of ${audioFileEntries.length}: ${originalAudioFilename}`;
                     logElement.textContent += `\n--- Processing: ${originalAudioFilename} ---\n`;
 
@@ -494,7 +460,7 @@
                     } catch (durationError) {
                         logElement.textContent += `Error getting duration for ${originalAudioFilename}: ${durationError.message}. Skipping this audio.\n`;
                         console.error(`Duration error for ${originalAudioFilename}:`, durationError);
-                        continue; // Skip this audio file
+                        continue;
                     }
 
                     const audioFilenameInFS = `current_audio${getFileExtension(originalAudioFilename)}`;
@@ -505,33 +471,37 @@
                     const outputVideoFilenameInFS = `output_video.${outputVideoFormat}`;
                     
                     const command = [
-                        '-loop', '1',
-                        '-framerate', '1', 
-                        '-i', imageFilenameInFS,
+                        '-loop', '1', '-framerate', '1', '-i', imageFilenameInFS,
                         '-i', audioFilenameInFS,
                         '-vf', `fps=25,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p`, 
-                        '-c:v', 'libx264',
-                        '-tune', 'stillimage',
-                        '-preset', 'medium', 
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
+                        '-c:v', 'libx264', '-tune', 'stillimage', '-preset', 'medium', 
+                        '-c:a', 'aac', '-b:a', '128k',
                         '-t', audioDuration.toString(),
-                        '-shortest',
-                        '-movflags', '+faststart', 
+                        '-shortest', '-movflags', '+faststart', 
                         outputVideoFilenameInFS
                     ];
 
                     logElement.textContent += `FFmpeg command: ffmpeg ${command.join(' ')}\n`;
-                    // For @ffmpeg/ffmpeg v0.10.x, use 'run' method
                     await ffmpegInstance.run(...command); 
 
-                    // For v0.10.x, use FS method for reading files
                     const videoOutputData = ffmpegInstance.FS('readFile', outputVideoFilenameInFS);
-                    allGeneratedVideos.push({
-                        name: `${outputVideoFilenameBase}.${outputVideoFormat}`,
-                        data: videoOutputData
-                    });
-                    logElement.textContent += `Video for "${originalAudioFilename}" created successfully.\n`;
+                    
+                    // Create and append download link for the generated video
+                    const videoBlobOut = new Blob([videoOutputData], { type: `video/${outputVideoFormat}` });
+                    const videoUrl = URL.createObjectURL(videoBlobOut);
+                    const link = document.createElement('a');
+                    link.href = videoUrl;
+                    const downloadFileName = `${outputVideoFilenameBase}.${outputVideoFormat}`;
+                    link.download = downloadFileName;
+                    link.textContent = `Download ${downloadFileName}`;
+                    link.className = 'download-link';
+                    // link.style.display = 'block'; // Class 'download-link' now handles this
+                    // link.style.marginBottom = '10px'; // Class 'download-link' now handles this
+
+                    outputVideosContainer.appendChild(link);
+                    videosGeneratedCount++;
+                    
+                    logElement.textContent += `Video for "${originalAudioFilename}" created successfully and download link added.\n`;
 
                     try { ffmpegInstance.FS('unlink', audioFilenameInFS); } catch(e) { console.warn("Could not delete audio from FS:", e); }
                     try { ffmpegInstance.FS('unlink', outputVideoFilenameInFS); } catch(e) { console.warn("Could not delete video from FS:", e); }
@@ -539,37 +509,23 @@
 
                 try { ffmpegInstance.FS('unlink', imageFilenameInFS); } catch(e) { console.warn("Could not delete image from FS:", e); }
 
-                if (allGeneratedVideos.length === 0) {
+                if (videosGeneratedCount === 0) {
                     throw new Error("No videos were successfully generated. Check logs for errors.");
                 }
-
-                // 4. Zip all generated videos
-                progressText.textContent = `Zipping ${allGeneratedVideos.length} video(s)...`;
-                logElement.textContent += `\n--- Zipping ${allGeneratedVideos.length} video(s) ---\n`;
-                const outputZip = new JSZip();
-                for (const video of allGeneratedVideos) {
-                    outputZip.file(video.name, video.data);
-                    logElement.textContent += `Added ${video.name} to output ZIP.\n`;
-                }
-
-                const zipBlob = await outputZip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-                const zipUrl = URL.createObjectURL(zipBlob);
                 
-                downloadZipLink.href = zipUrl;
-                downloadZipLink.download = `generated_videos_${Date.now()}.zip`; // Unique filename
-                outputZipContainer.classList.remove('hidden');
-                logElement.textContent += `Output ZIP created successfully.\n`;
-                progressText.textContent = `All ${allGeneratedVideos.length} videos processed and zipped!`;
+                outputVideosContainer.classList.remove('hidden');
+                logElement.textContent += `\nAll ${videosGeneratedCount} video(s) processed. Download links available above.\n`;
+                progressText.textContent = `All ${videosGeneratedCount} video(s) processed!`;
                 progressBar.style.width = '100%';
                 progressBar.textContent = '100%';
 
             } catch (error) {
                 console.error('Error during processing:', error);
-                progressText.textContent = `Error: ${error.message || error}`; // Handle cases where error might not be an Error object
+                progressText.textContent = `Error: ${error.message || error}`;
                 let errorMessage = error instanceof Error ? error.message : String(error);
                 let errorStack = error instanceof Error ? error.stack : 'N/A';
                 logElement.textContent += `\n\nERROR: ${errorMessage}\nStack: ${errorStack}\n`;
-                if (error && typeof error === 'object' && 'stderr' in error) { // Check for FFmpeg specific error object
+                if (error && typeof error === 'object' && 'stderr' in error) {
                     logElement.textContent += `FFmpeg stderr: ${error.stderr}\n`;
                 }
                 showMessage(`An error occurred: ${errorMessage}. Check the log for details.`);
@@ -582,11 +538,8 @@
             }
         }
 
-        // --- Initial Setup ---
         window.addEventListener('load', () => {
             generateButton.textContent = 'Load FFmpeg & Generate';
-            // Attempt to load FFmpeg on page load for faster startup
-            // Check if FFmpegWASM is available before trying to load
             if (typeof FFmpegWASM === 'undefined' || typeof FFmpegWASM.FFmpeg === 'undefined') {
                 console.error("FFmpegWASM global or FFmpegWASM.FFmpeg class not found. Ensure ffmpeg.min.js is loaded correctly.");
                 generateButton.textContent = 'FFmpeg Script Error';
@@ -594,7 +547,6 @@
                 showMessage("Error: ffmpeg.min.js did not load correctly. FFmpegWASM is undefined.");
                 return;
             }
-
             loadFFmpeg().then(loaded => {
                 if(loaded) updateGenerateButtonState();
             });
@@ -603,7 +555,6 @@
         });
 
         generateButton.addEventListener('click', generateAndZipVideos);
-
     </script>
 </body>
 </html>
