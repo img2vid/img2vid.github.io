@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio ZIP + Image to Videos Converter</title>
     <script src="./jszip.min.js"></script>
-    <script src="./ffmpeg.min.js"></script>
-    <style>
+    <script src="./ffmpeg.min.js"></script> <style>
         body {
             font-family: 'Inter', sans-serif;
             padding: 20px;
@@ -251,7 +250,9 @@
     </div>
 
     <script>
-        const { FFmpeg } = FFmpegWASM;
+        // It's assumed that your ./ffmpeg.min.js provides FFmpegWASM global
+        // This is typical for @ffmpeg/ffmpeg v0.10.x
+        const { FFmpeg: FFmpegClass } = FFmpegWASM; // Destructure FFmpeg class
         let ffmpegInstance = null;
         let isProcessing = false;
 
@@ -303,7 +304,8 @@
             console.log('Creating FFmpeg instance...');
 
             try {
-                ffmpegInstance = new FFmpeg();
+                // Use the destructured FFmpegClass
+                ffmpegInstance = new FFmpegClass(); 
                 ffmpegInstance.on('log', ({ type, message }) => {
                     if (isProcessing) { // Only show log during active processing
                         console.log(`[FFmpeg] [${type}] ${message}`);
@@ -313,25 +315,23 @@
                 });
 
                 ffmpegInstance.on('progress', ({ progress, time }) => {
-                     // This progress is for the current FFmpeg task (one video).
-                     // We'll use overallProgressText for "Video X of Y" type updates.
-                    if (isProcessing && progress && typeof progress === 'number') {
+                     if (isProcessing && progress && typeof progress === 'number') {
                         const currentVideoProgress = Math.min(100, Math.max(0, progress * 100));
-                        // Update a more specific progress if needed, e.g., for the current video.
-                        // For now, the main progress bar shows overall videos processed.
-                        // progressText.textContent = `Processing current video... (${currentVideoProgress.toFixed(1)}%)`;
                         console.log(`FFmpeg task progress: ${currentVideoProgress.toFixed(1)}%`);
                     }
                 });
 
+                // For @ffmpeg/ffmpeg v0.10.x, 'corePath' is used.
+                // Ensure './ffmpeg-core.js' is the correct path to the core JS file
+                // compatible with your ffmpeg.min.js (v0.10.x) and its corresponding WASM file.
+                // The WASM file is usually loaded by the core JS itself.
                 await ffmpegInstance.load({
-                    coreURL: './ffmpeg-core.js', // Adjust path if needed
-                    wasmURL: './ffmpeg-core.wasm' // Adjust path if needed
+                    corePath: './ffmpeg-core.js' 
                 });
 
                 console.log('FFmpeg core loaded successfully.');
                 generateButton.textContent = 'Generate Videos & ZIP';
-                updateGenerateButtonState(); // Checks if inputs are ready
+                updateGenerateButtonState(); 
                 return true;
             } catch (error) {
                 console.error('Error loading FFmpeg:', error);
@@ -448,7 +448,8 @@
                 const imageExtension = getFileExtension(imageFile.name) || '.png'; // Default if no ext
                 const imageFilenameInFS = `static_image${imageExtension}`;
                 const imageData = await readFileAsUint8Array(imageFile);
-                await ffmpegInstance.writeFile(imageFilenameInFS, imageData);
+                // For v0.10.x, use FS method for writing files
+                ffmpegInstance.FS('writeFile', imageFilenameInFS, imageData);
                 logElement.textContent += `Image "${imageFile.name}" written to virtual FS as "${imageFilenameInFS}".\n`;
 
                 // 2. Unzip audio files
@@ -460,7 +461,6 @@
                 
                 const audioFileEntries = [];
                 zip.forEach((relativePath, zipEntry) => {
-                    // Basic audio file extension check - can be improved
                     const lowerRelativePath = relativePath.toLowerCase();
                     if (!zipEntry.dir && (lowerRelativePath.endsWith('.mp3') || lowerRelativePath.endsWith('.wav') || lowerRelativePath.endsWith('.m4a') || lowerRelativePath.endsWith('.aac') || lowerRelativePath.endsWith('.ogg') || lowerRelativePath.endsWith('.flac'))) {
                         audioFileEntries.push(zipEntry);
@@ -484,7 +484,6 @@
                     progressText.textContent = `Processing video ${i + 1} of ${audioFileEntries.length}: ${originalAudioFilename}`;
                     logElement.textContent += `\n--- Processing: ${originalAudioFilename} ---\n`;
 
-                    // Create a File object to get duration
                     const audioBlob = new Blob([audioData], { type: `audio/${getFileExtension(originalAudioFilename).substring(1) || 'mpeg'}` });
                     const audioFileForDuration = new File([audioBlob], originalAudioFilename, { type: audioBlob.type });
                     
@@ -499,7 +498,7 @@
                     }
 
                     const audioFilenameInFS = `current_audio${getFileExtension(originalAudioFilename)}`;
-                    await ffmpegInstance.writeFile(audioFilenameInFS, audioData);
+                    ffmpegInstance.FS('writeFile', audioFilenameInFS, audioData);
                     logElement.textContent += `Audio "${originalAudioFilename}" written to virtual FS as "${audioFilenameInFS}".\n`;
 
                     const outputVideoFilenameBase = getFilenameWithoutExtension(originalAudioFilename);
@@ -507,38 +506,38 @@
                     
                     const command = [
                         '-loop', '1',
-                        '-framerate', '1', // Input image framerate
+                        '-framerate', '1', 
                         '-i', imageFilenameInFS,
                         '-i', audioFilenameInFS,
-                        '-vf', `fps=25,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p`, // Output 25fps, ensure even dimensions, yuv420p
+                        '-vf', `fps=25,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p`, 
                         '-c:v', 'libx264',
                         '-tune', 'stillimage',
-                        '-preset', 'medium', // Balance between speed and quality
+                        '-preset', 'medium', 
                         '-c:a', 'aac',
                         '-b:a', '128k',
                         '-t', audioDuration.toString(),
                         '-shortest',
-                        '-movflags', '+faststart', // Good for web/streaming
+                        '-movflags', '+faststart', 
                         outputVideoFilenameInFS
                     ];
 
                     logElement.textContent += `FFmpeg command: ffmpeg ${command.join(' ')}\n`;
-                    await ffmpegInstance.exec(...command); // Spread arguments for exec
+                    // For @ffmpeg/ffmpeg v0.10.x, use 'run' method
+                    await ffmpegInstance.run(...command); 
 
-                    const videoOutputData = await ffmpegInstance.readFile(outputVideoFilenameInFS);
+                    // For v0.10.x, use FS method for reading files
+                    const videoOutputData = ffmpegInstance.FS('readFile', outputVideoFilenameInFS);
                     allGeneratedVideos.push({
                         name: `${outputVideoFilenameBase}.${outputVideoFormat}`,
                         data: videoOutputData
                     });
                     logElement.textContent += `Video for "${originalAudioFilename}" created successfully.\n`;
 
-                    // Cleanup files for this iteration from FFmpeg FS
-                    try { await ffmpegInstance.deleteFile(audioFilenameInFS); } catch(e) { console.warn("Could not delete audio from FS:", e); }
-                    try { await ffmpegInstance.deleteFile(outputVideoFilenameInFS); } catch(e) { console.warn("Could not delete video from FS:", e); }
+                    try { ffmpegInstance.FS('unlink', audioFilenameInFS); } catch(e) { console.warn("Could not delete audio from FS:", e); }
+                    try { ffmpegInstance.FS('unlink', outputVideoFilenameInFS); } catch(e) { console.warn("Could not delete video from FS:", e); }
                 }
 
-                // Cleanup static image from FFmpeg FS
-                try { await ffmpegInstance.deleteFile(imageFilenameInFS); } catch(e) { console.warn("Could not delete image from FS:", e); }
+                try { ffmpegInstance.FS('unlink', imageFilenameInFS); } catch(e) { console.warn("Could not delete image from FS:", e); }
 
                 if (allGeneratedVideos.length === 0) {
                     throw new Error("No videos were successfully generated. Check logs for errors.");
@@ -566,9 +565,14 @@
 
             } catch (error) {
                 console.error('Error during processing:', error);
-                progressText.textContent = `Error: ${error.message}`;
-                logElement.textContent += `\n\nERROR: ${error.message}\nStack: ${error.stack || 'N/A'}\n`;
-                showMessage(`An error occurred: ${error.message}. Check the log for details.`);
+                progressText.textContent = `Error: ${error.message || error}`; // Handle cases where error might not be an Error object
+                let errorMessage = error instanceof Error ? error.message : String(error);
+                let errorStack = error instanceof Error ? error.stack : 'N/A';
+                logElement.textContent += `\n\nERROR: ${errorMessage}\nStack: ${errorStack}\n`;
+                if (error && typeof error === 'object' && 'stderr' in error) { // Check for FFmpeg specific error object
+                    logElement.textContent += `FFmpeg stderr: ${error.stderr}\n`;
+                }
+                showMessage(`An error occurred: ${errorMessage}. Check the log for details.`);
             } finally {
                 isProcessing = false;
                 audioZipInput.disabled = false;
@@ -582,6 +586,15 @@
         window.addEventListener('load', () => {
             generateButton.textContent = 'Load FFmpeg & Generate';
             // Attempt to load FFmpeg on page load for faster startup
+            // Check if FFmpegWASM is available before trying to load
+            if (typeof FFmpegWASM === 'undefined' || typeof FFmpegWASM.FFmpeg === 'undefined') {
+                console.error("FFmpegWASM global or FFmpegWASM.FFmpeg class not found. Ensure ffmpeg.min.js is loaded correctly.");
+                generateButton.textContent = 'FFmpeg Script Error';
+                generateButton.disabled = true;
+                showMessage("Error: ffmpeg.min.js did not load correctly. FFmpegWASM is undefined.");
+                return;
+            }
+
             loadFFmpeg().then(loaded => {
                 if(loaded) updateGenerateButtonState();
             });
