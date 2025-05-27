@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -359,12 +360,10 @@
         </button>
     </div>
 
-    <script src="./jszip.min.js"></script>
-    <script src="./FileSaver.min.js"></script>
-    <script src="./ffmpeg.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg.min.js"></script>
     <script>
-	const { createFFmpeg, fetchFile } = FFmpeg; // Destructure createFFmpeg
-	let ffmpegInstance = null;
         let ffmpegInstance = null;
         let processedVideos = [];
         let audioFiles = [];
@@ -486,12 +485,16 @@
             if (ffmpegInstance) return true;
 
             try {
-                ffmpegInstance = createFFmpeg({
-  	        log: true, // Enable logging - very helpful for debugging!
-    	        coreURL: "./ffmpeg-core.js",
-         	wasmURL: "./ffmpeg-core.wasm",
-	        });
-	        await ffmpegInstance.load(); // Load is called without arguments here
+                ffmpegInstance = new FFmpeg();
+                
+                ffmpegInstance.on('log', ({ type, message }) => {
+                    console.log(`[FFmpeg] [${type}] ${message}`);
+                });
+
+                await ffmpegInstance.load({
+                    coreURL: "https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg-core.js",
+                    wasmURL: "https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg-core.wasm",
+                });
                 
                 return true;
             } catch (error) {
