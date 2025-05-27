@@ -702,7 +702,7 @@
                     outputFilename
                 ];
 
-                await ffmpegInstance.run(...command);
+                await ffmpegInstance.exec(command);
 
                 // Read output
                 const outputData = await ffmpegInstance.readFile(outputFilename);
