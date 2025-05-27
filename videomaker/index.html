@@ -361,9 +361,9 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg.min.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js"></script>
     <script>
-        const { FFmpeg } = FFmpegWASM;
+        const { FFmpeg } = FFmpeg;
         let ffmpegInstance = null;
         let processedVideos = [];
         let audioFiles = [];
@@ -399,11 +399,15 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            zipInfo.textContent = 'Reading zip file...';
+            zipInfo.style.display = 'block';
+
             try {
                 const zip = new JSZip();
                 const zipContent = await zip.loadAsync(file);
                 audioFiles = [];
 
+                let fileCount = 0;
                 for (const [filename, zipEntry] of Object.entries(zipContent.files)) {
                     if (!zipEntry.dir && isAudioFile(filename)) {
                         const blob = await zipEntry.async('blob');
@@ -411,15 +415,22 @@
                             name: filename,
                             blob: blob
                         });
+                        fileCount++;
                     }
                 }
 
-                zipInfo.innerHTML = `<strong>✅ Found ${audioFiles.length} audio files</strong><br>Ready for ultra-fast processing!`;
+                if (fileCount === 0) {
+                    zipInfo.innerHTML = '<span style="color: #f56565;">❌ No audio files found in zip</span>';
+                } else {
+                    zipInfo.innerHTML = `<strong>✅ Found ${fileCount} audio files</strong><br>Ready for ultra-fast processing!`;
+                }
                 zipInfo.style.display = 'block';
                 updateProcessButton();
+                
+                console.log('Audio files loaded:', audioFiles.length);
             } catch (error) {
                 console.error('Error reading zip file:', error);
-                zipInfo.textContent = 'Error reading zip file';
+                zipInfo.innerHTML = `<span style="color: #f56565;">❌ Error reading zip file: ${error.message}</span>`;
                 zipInfo.style.display = 'block';
             }
         }
@@ -428,14 +439,40 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                imageInfo.innerHTML = '<span style="color: #f56565;">❌ Please select a valid image file</span>';
+                imageInfo.style.display = 'block';
+                imageFile = null;
+                updateProcessButton();
+                return;
+            }
+
             imageFile = file;
             imageInfo.innerHTML = `<strong>✅ ${file.name}</strong><br>Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
             imageInfo.style.display = 'block';
             updateProcessButton();
+            
+            console.log('Image file loaded:', file.name);
         }
 
         function updateProcessButton() {
-            processBtn.disabled = !audioFiles.length || !imageFile;
+            const hasAudio = audioFiles && audioFiles.length > 0;
+            const hasImage = imageFile !== null;
+            
+            console.log('Button update - Audio files:', hasAudio ? audioFiles.length : 0, 'Image:', hasImage);
+            
+            processBtn.disabled = !hasAudio || !hasImage;
+            
+            if (processBtn.disabled) {
+                processBtn.style.opacity = '0.5';
+                processBtn.textContent = hasAudio ? 
+                    (hasImage ? '⚡ PROCESSING READY' : '📷 SELECT IMAGE FILE') : 
+                    '📦 SELECT AUDIO ZIP FILE';
+            } else {
+                processBtn.style.opacity = '1';
+                processBtn.textContent = '⚡ ULTRA-FAST PROCESS & CREATE VIDEOS';
+            }
         }
 
         function isAudioFile(filename) {
@@ -449,11 +486,20 @@
 
             try {
                 ffmpegInstance = new FFmpeg();
-                await ffmpegInstance.load();
+                
+                ffmpegInstance.on('log', ({ type, message }) => {
+                    console.log(`[FFmpeg] [${type}] ${message}`);
+                });
+
+                await ffmpegInstance.load({
+                    coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
+                    wasmURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
+                });
+                
                 return true;
             } catch (error) {
                 console.error('Error loading FFmpeg:', error);
-                alert(`Error loading FFmpeg: ${error.message}`);
+                alert(`Error loading FFmpeg: ${error.message}\n\nTry refreshing the page and uploading files again.`);
                 return false;
             }
         }
