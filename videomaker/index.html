@@ -363,6 +363,8 @@
     <script src="./FileSaver.min.js"></script>
     <script src="./ffmpeg.min.js"></script>
     <script>
+	const { createFFmpeg, fetchFile } = FFmpeg; // Destructure createFFmpeg
+	let ffmpegInstance = null;
         let ffmpegInstance = null;
         let processedVideos = [];
         let audioFiles = [];
@@ -484,16 +486,12 @@
             if (ffmpegInstance) return true;
 
             try {
-                ffmpegInstance = new FFmpeg();
-                
-                ffmpegInstance.on('log', ({ type, message }) => {
-                    console.log(`[FFmpeg] [${type}] ${message}`);
-                });
-
-                await ffmpegInstance.load({
-                    coreURL: "./ffmpeg-core.js",
-                    wasmURL: "./ffmpeg-core.wasm",
-                });
+                ffmpegInstance = createFFmpeg({
+  	        log: true, // Enable logging - very helpful for debugging!
+    	        coreURL: "./ffmpeg-core.js",
+         	wasmURL: "./ffmpeg-core.wasm",
+	        });
+	        await ffmpegInstance.load(); // Load is called without arguments here
                 
                 return true;
             } catch (error) {
