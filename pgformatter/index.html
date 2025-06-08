@@ -3,682 +3,797 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Text Cleaner (Batch)</title>
-<script src="jszip.min.js"></script>
+    <title>Bulk Images + Audio to Video Converter</title>
     <style>
-        /* (Keep your existing CSS styles here) */
+        /* CSS styles remain exactly as provided in the original prompt */
         body {
             font-family: sans-serif;
-            line-height: 1.6;
             padding: 20px;
             background-color: #f4f4f4;
             color: #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            line-height: 1.6;
         }
-
         .container {
-            background-color: #fff;
+            max-width: 900px; /* Wider for multiple jobs */
+            margin: auto;
+            background: #fff;
             padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 80%;
-            max-width: 900px;
-            margin: auto;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
         }
-
-        h1 {
+        h1, h2 {
+            color: #555;
             text-align: center;
-            color: #2c3e50;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
-
         label {
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 5px; /* Smaller margin */
             font-weight: bold;
-            color: #34495e;
         }
-
-        input[type="file"] {
+        input[type="file"], input[type="number"], select {
             display: block;
-            margin-bottom: 20px;
-            padding: 10px;
+            width: 100%;
+            padding: 8px; /* Smaller padding */
+            margin-bottom: 10px; /* Smaller margin */
             border: 1px solid #ccc;
             border-radius: 4px;
-            width: calc(100% - 22px); /* Account for padding and border */
-            cursor: pointer;
+            box-sizing: border-box;
+            font-size: 0.9em;
         }
-
-        button {
-            background-color: #3498db;
+        input[type="file"]::-webkit-file-upload-button {
+            padding: 8px 12px; /* Smaller padding */
+            border: none;
+            background-color: #5cb85c;
             color: white;
-            padding: 12px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+        }
+        input[type="file"]::-webkit-file-upload-button:hover {
+            background-color: #4cae4c;
+        }
+        button {
+            padding: 10px 15px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 1em;
             transition: background-color 0.3s ease;
-            margin-right: 10px;
-            margin-top: 10px;
+            margin-right: 10px; /* Margin between buttons */
+            margin-bottom: 10px; /* Space below buttons */
         }
-
-        button:hover {
-            background-color: #2980b9;
+        button.primary {
+            background-color: #007bff;
+            color: white;
+            width: auto; /* Allow natural width */
         }
-
-        button#downloadButton {
-            background-color: #2ecc71;
+        button.primary:hover {
+            background-color: #0056b3;
         }
-
-        button#downloadButton:hover {
-            background-color: #27ae60;
+        button.secondary {
+            background-color: #6c757d;
+            color: white;
+            width: auto;
         }
-
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+         button.danger {
+            background-color: #dc3545;
+            color: white;
+            width: auto;
+            float: right; /* Position remove button */
+        }
+        button.danger:hover {
+            background-color: #c82333;
+        }
         button:disabled {
-            background-color: #bdc3c7;
+            background-color: #ccc;
             cursor: not-allowed;
         }
 
-        textarea#logArea { /* Changed ID and purpose */
-            width: 100%;
-            height: 200px; /* Adjusted height for logs */
+        #jobs-container {
             margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .job-slot {
+            border: 1px solid #ddd;
+            border-radius: 5px;
             padding: 15px;
-            border: 1px solid #ccc;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            position: relative; /* For positioning remove button */
+        }
+        .job-slot h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #444;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .job-controls {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Responsive grid */
+             gap: 15px; /* Space between grid items */
+             margin-bottom: 15px;
+        }
+
+        #overall-progress-container, #log-container, #overall-output-container {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px solid #eee;
             border-radius: 4px;
+            background-color: #f0f0f0; /* Different background */
+        }
+        #overall-progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        #overallProgressBar {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            font-size: 12px;
+            transition: width 0.2s ease-out;
+        }
+        #overall-progress-text {
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+        #log {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px; /* More space for logs */
+            overflow-y: auto;
             font-family: monospace;
             font-size: 0.9em;
-            box-sizing: border-box;
-            background-color: #ecf0f1;
-            white-space: pre-wrap; /* Ensure wrapping */
-            word-wrap: break-word; /* Break long words if necessary */
+            background-color: #fff;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
+        .job-output {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px dashed #ccc;
+        }
+        .job-output video {
+             display: block;
+             max-width: 100%;
+             max-height: 300px; /* Limit video preview height */
+             margin-top: 10px;
+             border-radius: 4px;
+             background-color: #000; /* Black background for video player */
+        }
+         .job-output .status {
+            font-weight: bold;
+            margin-bottom: 5px;
+         }
+        .job-output .status.success { color: #28a745; }
+        .job-output .status.error { color: #dc3545; }
+        .job-output .status.pending { color: #6c757d; }
+        .job-output .status.processing { color: #007bff; }
+        .job-output .message { font-size: 0.9em; color: #555; }
 
-        .info {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #e8f4fd;
-            border: 1px solid #bde0fe;
+        a.download-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
             border-radius: 4px;
             font-size: 0.9em;
-            color: #0353a4;
+            transition: background-color 0.3s ease;
         }
-
-        .info ul {
-            margin-top: 10px;
-            margin-bottom: 0;
-            padding-left: 20px;
+        a.download-link:hover {
+            background-color: #218838;
         }
-
-        .error {
-            color: #c0392b;
-            font-weight: bold;
-            margin-top: 10px;
-            white-space: pre-wrap; /* Allow errors to wrap */
-        }
-
-        .processing-status {
-            margin-top: 15px;
-            font-style: italic;
-            color: #7f8c8d;
-            white-space: pre-wrap; /* Allow status to wrap */
+        .file-info {
+            font-size: 0.8em;
+            color: #777;
+            margin-top: -5px;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h1>Bulk Images + Audio to Video Converter</h1>
+        <p>Add multiple conversion jobs below. For each job, select sequentially named images (e.g., img001.png, img002.png...) and one audio file.</p>
+        <p>Leave 'Image Duration' empty to automatically divide audio length by the number of images.</p> <div>
+             <button id="addJobButton" class="secondary">Add Conversion Job</button>
+             <button id="startAllButton" class="primary" disabled>Load FFmpeg & Start All</button>
+        </div>
 
-<div class="container">
-    <h1>Intelligent Text Cleaner (Batch Process)</h1>
+        <div id="jobs-container">
+             </div>
 
-    <div class="info">
-        <strong>How it works:</strong>
-        <ul>
-            <li>Upload one or more plain text (.txt) files.</li>
-            <li>Each file is processed individually based on the rules:</li>
-            <li><strong>If a file contains at least four `***` separators:</strong>
-                <ul>
-                     <li>Removes all text before the first `***`.</li>
-                     <li>Removes the text between the first and second `***` (including the delimiters).</li>
-                     <li>Removes all text after the last `***`.</li>
-                     <li>Removes the text between the second-to-last and the last `***` (including the delimiters).</li>
-                     <li>Keeps only the text between the second and second-to-last `***`.</li>
-                 </ul>
-             </li>
-             <li><strong>On the *remaining* text of each file:</strong></li>
-             <ul>
-                 <li>Removes most line breaks, preserving paragraphs.</li>
-                 <li>Intelligently identifies chapter/part/section headings.</li>
-                 <li>Ensures one blank line before and after identified headings.</li>
-                 <li>Converts Roman numerals to Arabic numerals ONLY within detected headings.</li>
-                 <li>Removes all underscore (_) characters.</li>
-                 <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
-             </ul>
-            <li>A log shows the processing status for each file.</li>
-            <li>Click 'Download Cleaned Files (ZIP)' to get a zip archive containing all successfully processed files.</li>
-        </ul>
+        <div id="job-template" style="display: none;">
+             <div class="job-slot" data-job-id="">
+                 <button class="danger remove-job-button">Remove Job</button>
+                 <h3>Job #<span></span></h3>
+                 <div class="job-controls">
+                     <div>
+                         <label for="imageFiles_">Select Image Files:</label>
+                         <input type="file" id="imageFiles_" name="imageFiles" multiple accept="image/*">
+                         <div class="file-info">Sequentially named (e.g., img001, img002...). Sorted alphabetically.</div>
+                     </div>
+                     <div>
+                          <label for="audioFile_">Select Audio File:</label>
+                          <input type="file" id="audioFile_" name="audioFile" accept="audio/*">
+                     </div>
+                     <div>
+                          <label for="imageDuration_">Image Duration (s):</label>
+                          <input type="number" id="imageDuration_" name="imageDuration" placeholder="Auto (AudioLen / Imgs)" min="0.01" step="0.01"> </div>
+                     <div>
+                          <label for="outputFormat_">Output Format:</label>
+                          <select id="outputFormat_" name="outputFormat">
+                              <option value="mp4">MP4</option>
+                              <option value="mov">MOV</option>
+                          </select>
+                     </div>
+                 </div>
+                 <div class="job-output">
+                     <div class="status">Status: Pending</div>
+                     <div class="message"></div>
+                     <video controls style="display: none;"></video>
+                     <a class="download-link" style="display: none;" download="">Download Video</a>
+                 </div>
+             </div>
+        </div>
+
+
+        <div id="overall-progress-container" style="display: none;">
+            <h2>Overall Progress</h2>
+            <div id="overall-progress-bar-container">
+                <div id="overallProgressBar">0%</div>
+            </div>
+            <div id="overall-progress-text">Preparing...</div>
+        </div>
+
+        <div id="log-container" style="display: none;">
+            <h2>FFmpeg Log (Current Job)</h2>
+            <pre id="log"></pre>
+        </div>
+
     </div>
 
-    <label for="fileInput">Upload your .txt file(s):</label>
-    <input type="file" id="fileInput" accept=".txt" multiple>
+    <script src="ffmpeg.min.js"></script>
+    <script>
+        const { FFmpeg } = FFmpegWASM;
+        let ffmpegInstance = null;
+        let jobs = []; // Array to hold job data AFTER validation/calculation
+        let jobCounter = 0; // To assign unique IDs to job slots
+        let currentJobIndex = -1; // Index of the job being processed
+        let isProcessing = false;
 
-    <div id="status" class="processing-status">Select files to begin.</div>
-    <div id="error" class="error"></div>
+        // --- DOM Elements ---
+        const addJobButton = document.getElementById('addJobButton');
+        const startAllButton = document.getElementById('startAllButton');
+        const jobsContainer = document.getElementById('jobs-container');
+        const jobTemplate = document.getElementById('job-template');
 
-    <textarea id="logArea" readonly placeholder="Processing logs will appear here..."></textarea>
+        const overallProgressBar = document.getElementById('overallProgressBar');
+        const overallProgressText = document.getElementById('overall-progress-text');
+        const logElement = document.getElementById('log');
 
-    <button id="downloadButton" disabled>Download Cleaned Files (ZIP)</button>
-</div>
+        const overallProgressContainer = document.getElementById('overall-progress-container');
+        const logContainer = document.getElementById('log-container');
 
-<script>
-    const fileInput = document.getElementById('fileInput');
-    const logArea = document.getElementById('logArea'); // Changed from outputArea
-    const downloadButton = document.getElementById('downloadButton');
-    const statusDiv = document.getElementById('status');
-    const errorDiv = document.getElementById('error');
+        // --- FFmpeg Loading ---
+        async function loadFFmpeg() {
+            if (ffmpegInstance) return true;
 
-    // Store results for all processed files
-    let processedFiles = []; // Array of { originalName: string, cleanedName: string, content: string, error?: string }
+            startAllButton.textContent = 'Loading FFmpeg Core...';
+            startAllButton.disabled = true;
+            addJobButton.disabled = true; // Disable adding jobs while loading
+            console.log('Creating FFmpeg instance...');
 
-    // --- Roman to Arabic Conversion Logic (Unchanged) ---
-    function romanToArabic(roman) {
-        // ... (Keep your existing romanToArabic function exactly as it was) ...
-        if (!roman || typeof roman !== 'string') return null;
-        roman = roman.toUpperCase().trim();
-        if (!/^\b[IVXLCDM]+\b$/i.test(roman)) return null;
+            try {
+                ffmpegInstance = new FFmpeg();
 
-        const romanMap = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
-        let result = 0;
-        let prevValue = 0;
-        let tempRoman = roman.toUpperCase();
-
-        for (let i = tempRoman.length - 1; i >= 0; i--) {
-            const currentValue = romanMap[tempRoman[i]];
-            if (currentValue === undefined) return null;
-            if (currentValue < prevValue) {
-                result -= currentValue;
-            } else {
-                result += currentValue;
-            }
-            prevValue = currentValue;
-        }
-
-        function arabicToRomanSimpleCheck(num) {
-             if (num <= 0 || num >= 4000) return '';
-             const val = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
-             const rom = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
-             let roman = '';
-             for (let i = 0; i < val.length; i++) {
-                 while (num >= val[i]) {
-                     roman += rom[i];
-                     num -= val[i];
-                 }
-             }
-             return roman;
-          }
-
-        if (result > 0 && result < 4000) {
-            if (arabicToRomanSimpleCheck(result) === tempRoman) {
-                return result;
-            } else {
-                console.warn(`Potential invalid Roman sequence: "${roman}" calculated to ${result}, but re-converts differently.`);
-                return null; // Treat as invalid if reconversion doesn't match
-            }
-        }
-        return null; // Out of range or invalid
-    }
-
-    // --- Text Processing Logic (Modified slightly for error return) ---
-    function processText(text, fileName) {
-        // Returns { content: string | null, error: string | null }
-        console.log(`Starting processing for: ${fileName}`);
-        let processingError = null; // Track errors specifically for this file
-
-        // --- *** Delimiter Processing Logic *** ---
-        const delimiter = '***';
-        const parts = text.split(delimiter);
-        if (parts.length >= 5) {
-            const contentParts = parts.slice(2, parts.length - 2);
-            text = contentParts.join(delimiter).trim();
-            console.log(`[${fileName}] Delimiter logic applied.`);
-        } else if (text.includes(delimiter)) {
-            processingError = `Error: Found ${parts.length - 1} instance(s) of "${delimiter}" in ${fileName}. At least 4 are required. Skipping further processing for this file.`;
-            console.warn(`[${fileName}] ${processingError}`);
-            return { content: null, error: processingError }; // Return error
-        } else {
-            console.log(`[${fileName}] No "***" delimiters found. Proceeding with original text.`);
-        }
-
-        if (text === "" && !processingError) {
-            console.log(`[${fileName}] Result is empty after delimiter processing (or no delimiters found and text was empty).`);
-            // Don't treat this as an error, just return empty content
-             return { content: "", error: null };
-        }
-
-
-        // --- Line Splitting and Analysis ---
-        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-        const numLines = lines.length;
-        const processedData = [];
-        console.log(`[${fileName}] Analyzing ${numLines} lines.`);
-
-        // --- Stage 1: Identify Headings ---
-        for (let i = 0; i < numLines; i++) {
-             // ... (Keep your existing heading detection logic exactly as it was) ...
-            let line = lines[i];
-            let trimmedLine = line.trim();
-            let isHeading = false;
-            let processedLine = trimmedLine;
-            let isEmptyLine = false;
-
-            if (trimmedLine === '') {
-                processedData.push({ original: line, processed: '', isHeading: false, isEmpty: true });
-                continue;
-            }
-
-            // Heuristics... (explicit, roman word start, implicit)
-             // 1. Explicit Keywords + Numerals
-            const explicitHeadingRegex = /^(Chapter|Part|Section|Book)\s+(\b[IVXLCDM]+\b|\d+)\s*[:.]?(?:\s+.*)?$/i;
-            let match = trimmedLine.match(explicitHeadingRegex);
-            if (match) {
-                isHeading = true;
-                const keyword = match[1];
-                const numeralStr = match[2];
-                const restOfLine = trimmedLine.substring(match[0].indexOf(numeralStr) + numeralStr.length).trim();
-
-                if (/^[IVXLCDM]+$/i.test(numeralStr)) {
-                    const arabic = romanToArabic(numeralStr);
-                    if (arabic !== null) {
-                        let separator = '';
-                        if (restOfLine) {
-                            separator = (/^[:.]/.test(restOfLine)) ? '' : ': ';
-                            processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}${separator}${restOfLine.replace(/^[:.\s]+/, '')}`;
-                        } else {
-                             processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}`;
-                        }
-                        // console.log(`[${fileName}] Converted Explicit Roman: "${trimmedLine}" -> "${processedLine}"`);
-                    } else {
-                        processedLine = trimmedLine;
-                        console.warn(`[${fileName}] Invalid Roman numeral "${numeralStr}" found in explicit heading: "${trimmedLine}"`);
+                ffmpegInstance.on('log', ({ type, message }) => {
+                    // Only show log if processing is active
+                    if (isProcessing) {
+                        console.log(`[FFmpeg Job ${currentJobIndex + 1}] [${type}] ${message}`);
+                        logElement.textContent += message + "\n";
+                        logElement.scrollTop = logElement.scrollHeight;
+                        logContainer.style.display = 'block';
                     }
-                } else {
-                     processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${numeralStr}${restOfLine ? (restOfLine.startsWith(':') || restOfLine.startsWith('.') ? '' : ': ') + restOfLine.replace(/^[:.\s]+/, '') : ''}`;
-                }
-            }
-
-             // 2. Roman Numeral Word at Start
-            if (!isHeading) {
-                const romanWordStartRegex = /^\b([IVXLCDM]+)\b([:.\s].*)?$/i;
-                match = trimmedLine.match(romanWordStartRegex);
-                if (match) {
-                    const potentialRoman = match[1];
-                    const restOfLine = (match[2] || '').trim();
-                    let proceedWithConversion = false;
-
-                    if (potentialRoman.toUpperCase() === 'I') {
-                        const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
-                        const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
-                        if (restOfLine === '' && prevLineEmpty && nextLineEmpty) {
-                            proceedWithConversion = true;
-                            // console.log(`[${fileName}] Treating standalone 'I' between blanks as heading: "${trimmedLine}"`);
-                        } else {
-                            const firstWordAfterI = restOfLine.split(/\s+/)[0] || '';
-                            const commonVerbs = /\b(am|was|will|have|had|do|did|go|went|see|saw|think|like|know|can|could|would|feel|want|is|m|ve|d|ll)\b/i;
-                            if (/^[a-z]/.test(restOfLine) || commonVerbs.test(firstWordAfterI)) {
-                                proceedWithConversion = false;
-                                // console.log(`[${fileName}] Skipping 'I' conversion (looks like pronoun): "${trimmedLine}"`);
-                            } else {
-                                const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
-                                if (isAllCaps || (prevLineEmpty && nextLineEmpty)){
-                                    proceedWithConversion = true;
-                                    // console.log(`[${fileName}] Treating contextual 'I' as heading: "${trimmedLine}"`);
-                                } else {
-                                     proceedWithConversion = false;
-                                    // console.log(`[${fileName}] Skipping ambiguous 'I' conversion (weak formatting): "${trimmedLine}"`);
-                                }
-                            }
-                        }
-                    } else { // Not 'I'
-                        const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
-                        const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
-                        const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
-
-                        if (isAllCaps || (prevLineEmpty && nextLineEmpty)) {
-                            if(romanToArabic(potentialRoman) !== null) {
-                                proceedWithConversion = true;
-                            } else {
-                                // console.log(`[${fileName}] Skipping conversion (invalid Roman sequence or word?): "${potentialRoman}" in line "${trimmedLine}"`);
-                                proceedWithConversion = false;
-                            }
-                        } else {
-                            // console.log(`[${fileName}] Skipping potential Roman conversion (weak formatting): "${trimmedLine}"`);
-                            proceedWithConversion = false;
-                        }
-                    }
-
-                    if (proceedWithConversion) {
-                        const arabic = romanToArabic(potentialRoman);
-                        if (arabic !== null) {
-                            isHeading = true;
-                            let separator = '';
-                            let actualRest = restOfLine;
-                            if (actualRest) {
-                                if (/^[:.]/.test(actualRest)) {
-                                    separator = '';
-                                } else if (actualRest.length > 0) {
-                                    separator = ': ';
-                                }
-                                actualRest = actualRest.replace(/^[:.\s]+/, '');
-                            }
-                            processedLine = `${arabic}${separator}${actualRest}`;
-                            // console.log(`[${fileName}] Converted Contextual Roman: "${trimmedLine}" -> "${processedLine}"`);
-                        } else {
-                            processedLine = trimmedLine;
-                            console.warn(`[${fileName}] Contextual Roman conversion failed unexpectedly for "${potentialRoman}" in: "${trimmedLine}"`);
-                        }
-                    } else {
-                         processedLine = trimmedLine; // Keep original if not converting
-                    }
-                }
-            }
-
-             // 3. Implicit Heading Detection (ALL CAPS line alone)
-            if (!isHeading) {
-                const isAllCaps = trimmedLine === trimmedLine.toUpperCase()
-                                  && trimmedLine.length > 1
-                                  && /[A-Z]/.test(trimmedLine)
-                                  && !/^\d+$/.test(trimmedLine);
-                const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
-                const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
-
-                if (isAllCaps && ((prevLineEmpty && nextLineEmpty) || (i === 0 && nextLineEmpty) || (i === numLines - 1 && prevLineEmpty))) {
-                    const romanWordRegex = /^\b[IVXLCDM]+\b$/i;
-                    if (!romanWordRegex.test(trimmedLine)) {
-                        isHeading = true;
-                        processedLine = trimmedLine;
-                        // console.log(`[${fileName}] Identified Implicit Heading (ALL CAPS): "${trimmedLine}"`);
-                    } else {
-                        // console.log(`[${fileName}] Skipping ALL CAPS heading mark for potential Roman word: "${trimmedLine}"`);
-                    }
-                }
-            }
-
-            processedData.push({
-                original: line,
-                processed: processedLine,
-                isHeading: isHeading,
-                isEmpty: false
-            });
-        }
-
-        // --- Stage 2: Reconstruct Text ---
-        console.log(`[${fileName}] Reconstructing text structure.`);
-        let result = '';
-        let currentParagraph = '';
-        let previousItemWasHeading = false;
-        let pendingBlankLine = true; // Assume we need a blank line at the start
-
-        for (let i = 0; i < processedData.length; i++) {
-            const item = processedData[i];
-
-            if (item.isHeading) {
-                if (currentParagraph) {
-                    result += currentParagraph.trim() + '\n';
-                    currentParagraph = '';
-                    pendingBlankLine = true;
-                }
-                if (!pendingBlankLine && result !== '') {
-                    result += '\n';
-                }
-                result += '\n' + item.processed + '\n';
-                pendingBlankLine = true;
-                previousItemWasHeading = true;
-            } else if (!item.isEmpty) { // Regular text line
-                if (currentParagraph === '') {
-                    if (!pendingBlankLine && result !== '' && !previousItemWasHeading) {
-                         result += '\n\n';
-                    } else if (pendingBlankLine && result !== '') {
-                        result += '\n';
-                    }
-                    currentParagraph = item.processed;
-                } else {
-                    if (currentParagraph.endsWith('-')) {
-                         currentParagraph = currentParagraph.slice(0, -1) + item.processed;
-                    } else {
-                         currentParagraph += ' ' + item.processed;
-                    }
-                }
-                pendingBlankLine = false;
-                previousItemWasHeading = false;
-            } else { // item.isEmpty is true
-                if (currentParagraph) {
-                    result += currentParagraph.trim() + '\n';
-                    currentParagraph = '';
-                }
-                pendingBlankLine = true;
-            }
-        }
-        // Add the last paragraph
-        if (currentParagraph) {
-             if (pendingBlankLine && result !== '') {
-                  result += '\n';
-             } else if (!pendingBlankLine && result !== '' && !previousItemWasHeading) {
-                  result += '\n\n';
-             }
-            result += currentParagraph.trim();
-        }
-
-        // --- Final Cleanup Steps ---
-        result = result.replace(/\n{3,}/g, '\n\n');
-        result = result.replace(/\[.*?\]/g, ''); // Non-greedy bracket removal
-        result = result.replace(/_/g, '');       // Remove all underscores
-        result = result.replace(/ {2,}/g, ' ');  // Collapse multiple spaces
-        result = result.replace(/ \n/g, '\n');   // Remove space before newline
-        result = result.replace(/\n /g, '\n');   // Remove space after newline
-        result = result.trim();                 // Final trim
-
-        console.log(`[${fileName}] Processing complete.`);
-        return { content: result, error: null }; // Success
-    }
-
-
-    // --- Event Listeners ---
-
-    fileInput.addEventListener('change', async (event) => {
-        const files = event.target.files;
-        if (!files || files.length === 0) {
-            errorDiv.textContent = 'No files selected.';
-            logArea.value = '';
-            statusDiv.textContent = 'Select files to begin.';
-            processedFiles = [];
-            downloadButton.disabled = true;
-            return;
-        }
-
-        // Reset UI and state for new batch
-        processedFiles = [];
-        logArea.value = `Selected ${files.length} file(s). Starting processing...\n-------------------------------------------\n`;
-        errorDiv.textContent = '';
-        statusDiv.textContent = 'Processing...';
-        downloadButton.disabled = true; // Disable until processing is done
-
-        const processingPromises = []; // Store promises for each file reader
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const currentFileNumber = i + 1;
-            const totalFiles = files.length;
-
-            logArea.value += `[${currentFileNumber}/${totalFiles}] Reading file: ${file.name}...\n`;
-
-            if (file.type !== 'text/plain') {
-                const errorMsg = `[${currentFileNumber}/${totalFiles}] Skipped: ${file.name} - Invalid file type (must be .txt).\n`;
-                logArea.value += errorMsg;
-                processedFiles.push({
-                    originalName: file.name,
-                    cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_skipped.txt",
-                    content: null,
-                    error: 'Invalid file type'
                 });
-                continue; // Skip this file, don't create a promise
+
+                ffmpegInstance.on('progress', ({ progress, time }) => {
+                     // Progress update logic (can remain as is or be improved)
+                    console.log(`FFmpeg progress (raw):`, { progress, time });
+                    if(isProcessing && currentJobIndex >= 0) {
+                        const jobProgress = Math.min(100, Math.max(0, (progress || 0) * 100));
+                        overallProgressText.textContent = `Processing Job ${currentJobIndex + 1} of ${jobs.length}... (${jobProgress.toFixed(1)}%)`;
+                    }
+                });
+
+                await ffmpegInstance.load({
+                    coreURL: './ffmpeg-core.js', // Assumes files are in the same directory
+                    wasmURL: './ffmpeg-core.wasm' // Assumes files are in the same directory
+                });
+
+                console.log('FFmpeg core loaded successfully.');
+                startAllButton.textContent = 'Start All Jobs';
+                startAllButton.disabled = jobsContainer.querySelectorAll('.job-slot').length === 0; // Enable only if jobs exist
+                addJobButton.disabled = false;
+                return true;
+            } catch (error) {
+                console.error('Error loading FFmpeg:', error);
+                startAllButton.textContent = 'Error Loading FFmpeg';
+                startAllButton.disabled = true;
+                addJobButton.disabled = true;
+                alert(`Error loading FFmpeg: ${error.message || error}. Please check console and refresh.`);
+                return false;
             }
+        }
 
-            // Create a promise for reading and processing each file
-            const promise = new Promise((resolve) => {
+        // --- Job Management ---
+        function addJobSlot() {
+            jobCounter++;
+            const newJobFragment = jobTemplate.firstElementChild.cloneNode(true);
+
+            // Assign unique IDs and clear inputs
+            newJobFragment.dataset.jobId = jobCounter;
+            newJobFragment.querySelector('h3 span').textContent = jobCounter;
+            newJobFragment.querySelectorAll('label').forEach(label => {
+                const oldFor = label.getAttribute('for');
+                if (oldFor) label.setAttribute('for', `${oldFor}${jobCounter}`);
+            });
+            newJobFragment.querySelectorAll('input, select').forEach(input => {
+                const oldId = input.id;
+                if (oldId) input.id = `${oldId}${jobCounter}`;
+                if (input.type === 'file') input.value = '';
+                // Set default for duration input correctly
+                if (input.name === 'imageDuration') input.value = ''; // Start empty for auto-calc hint
+            });
+
+            // Add event listener for the remove button
+            newJobFragment.querySelector('.remove-job-button').addEventListener('click', () => {
+                if (isProcessing) {
+                    alert("Cannot remove jobs while processing is active.");
+                    return;
+                }
+                newJobFragment.remove();
+                updateStartButtonState();
+            });
+
+            jobsContainer.appendChild(newJobFragment);
+            updateStartButtonState();
+        }
+
+        function updateStartButtonState() {
+             const jobSlots = jobsContainer.querySelectorAll('.job-slot');
+             // Enable start button only if FFmpeg is loaded and there are jobs
+            startAllButton.disabled = !ffmpegInstance || jobSlots.length === 0 || isProcessing;
+        }
+
+        // --- File Reading Helpers ---
+        function readFileAsUint8Array(file) {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
+                reader.onload = event => resolve(new Uint8Array(event.target.result));
+                reader.onerror = error => reject(error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
 
-                reader.onload = (e) => {
-                    try {
-                        const text = e.target.result;
-                        logArea.value += `[${currentFileNumber}/${totalFiles}] Processing: ${file.name}...\n`;
+        // --- NEW: Get Audio Duration Helper ---
+        function getAudioDuration(audioFile) {
+            return new Promise((resolve, reject) => {
+                if (!audioFile || !audioFile.type.startsWith('audio/')) {
+                    return reject(new Error("Invalid or missing audio file."));
+                }
+                const tempAudio = document.createElement('audio');
+                const objectURL = URL.createObjectURL(audioFile);
+                tempAudio.preload = 'metadata'; // Only need metadata, not the whole file
 
-                        // Run potentially long processing slightly async to allow UI updates
-                        setTimeout(() => {
-                             const result = processText(text, file.name);
-                             const cleanedName = file.name.replace(/\.[^/.]+$/, "") + "_cleaned.txt";
+                const cleanup = () => {
+                    tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
+                    tempAudio.removeEventListener('error', onError);
+                    URL.revokeObjectURL(objectURL); // IMPORTANT: Clean up Blob URL
+                };
 
-                             if (result.error) {
-                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Error processing ${file.name}: ${result.error}\n`;
-                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: null, error: result.error });
-                             } else if (result.content === null || result.content.trim() === '') {
-                                  logArea.value += `[${currentFileNumber}/${totalFiles}] Processed ${file.name} - Result is empty.\n`;
-                                  processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: '', error: null }); // Store empty content
-                             }
-                              else {
-                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Successfully processed: ${file.name}\n`;
-                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: result.content, error: null });
-                             }
-                             resolve(); // Resolve the promise for this file
-                        }, 10); // Small delay
-
-                    } catch (err) {
-                        console.error(`Error during processing of ${file.name}:`, err);
-                        const errorMsg = `An unexpected error occurred during processing: ${err.message}`;
-                        logArea.value += `[${currentFileNumber}/${totalFiles}] Error processing ${file.name}: ${errorMsg}\n`;
-                        processedFiles.push({
-                             originalName: file.name,
-                             cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_error.txt",
-                             content: null,
-                             error: errorMsg });
-                        resolve(); // Still resolve, but with error noted
+                const onLoadedMetadata = () => {
+                    const duration = tempAudio.duration;
+                    cleanup();
+                    console.log(`Audio duration for ${audioFile.name}: ${duration}`);
+                    if (isNaN(duration) || !isFinite(duration) || duration <= 0) {
+                       reject(new Error(`Could not determine a valid positive duration for ${audioFile.name}.`));
+                    } else {
+                        resolve(duration);
                     }
                 };
 
-                reader.onerror = (e) => {
-                    console.error(`File reading error for ${file.name}:`, e);
-                    const errorMsg = 'Error reading the file.';
-                    logArea.value += `[${currentFileNumber}/${totalFiles}] Error reading ${file.name}: ${errorMsg}\n`;
-                    processedFiles.push({
-                         originalName: file.name,
-                         cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_read_error.txt",
-                         content: null,
-                         error: errorMsg });
-                    resolve(); // Resolve even on read error
+                const onError = (e) => {
+                    cleanup();
+                    console.error(`Error loading audio metadata for ${audioFile.name}:`, e);
+                    reject(new Error(`Failed to load metadata for ${audioFile.name}. Check file format.`));
                 };
 
-                reader.readAsText(file);
+                tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
+                tempAudio.addEventListener('error', onError);
+
+                tempAudio.src = objectURL;
+                // Note: No need to append to DOM to get duration
             });
-            processingPromises.push(promise);
-        } // End of file loop
+        }
 
-        // Wait for all file reading/processing promises to settle
-        await Promise.all(processingPromises);
 
-        // Update UI after all files are processed
-        logArea.value += `\n-------------------------------------------\nBatch processing complete.`;
-        let successCount = 0;
-        let errorCount = 0;
-        let emptyCount = 0;
-
-        processedFiles.forEach(pf => {
-            if (pf.error) {
-                errorCount++;
-            } else if (pf.content !== null && pf.content.trim() !== '') {
-                successCount++;
-            } else {
-                 emptyCount++; // Count files that processed without error but resulted in empty content
+        // --- Main Processing Logic (Modified) ---
+        async function runAllJobs() { // Now async
+            if (isProcessing) {
+                console.warn("Processing already in progress.");
+                return;
             }
+
+            const loaded = await loadFFmpeg();
+            if (!loaded) return;
+
+            const jobSlots = jobsContainer.querySelectorAll('.job-slot');
+            if (jobSlots.length === 0) {
+                alert("Please add at least one job.");
+                return;
+            }
+
+            // Set UI to processing state EARLY
+            isProcessing = true;
+            startAllButton.disabled = true;
+            addJobButton.disabled = true;
+            document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = true);
+            overallProgressContainer.style.display = 'block';
+            logContainer.style.display = 'none';
+            logElement.textContent = '';
+            overallProgressBar.style.width = '0%';
+            overallProgressBar.textContent = '0%';
+            overallProgressText.textContent = 'Validating jobs and calculating durations...';
+
+
+            // 1. Collect, validate, and calculate duration for job data asynchronously
+            const jobPromises = Array.from(jobSlots).map(async (slot) => { // Use map with async
+                const jobId = slot.dataset.jobId;
+                const imageInput = slot.querySelector('input[name="imageFiles"]');
+                const audioInput = slot.querySelector('input[name="audioFile"]');
+                const durationInput = slot.querySelector('input[name="imageDuration"]');
+                const formatSelect = slot.querySelector('select[name="outputFormat"]');
+                const statusDiv = slot.querySelector('.job-output .status');
+                const messageDiv = slot.querySelector('.job-output .message');
+                const videoEl = slot.querySelector('video');
+                const downloadEl = slot.querySelector('.download-link');
+
+                // Reset status before validation
+                updateJobStatus(slot, 'Pending', 'Validating...');
+                videoEl.style.display = 'none';
+                downloadEl.style.display = 'none';
+                 if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
+                     URL.revokeObjectURL(downloadEl.href); // Clean up old blob URL if any
+                     downloadEl.href = '';
+                 }
+
+
+                // Basic validation
+                if (imageInput.files.length === 0) {
+                    updateJobStatus(slot, 'Error', 'No image files selected.');
+                    return null; // Indicate invalid job
+                }
+                if (audioInput.files.length !== 1) {
+                    updateJobStatus(slot, 'Error', 'Exactly one audio file must be selected.');
+                    return null; // Indicate invalid job
+                }
+
+                const imageFiles = Array.from(imageInput.files).sort((a, b) => a.name.localeCompare(b.name));
+                const audioFile = audioInput.files[0];
+                const outputFormat = formatSelect.value;
+                let imageDuration; // This will hold the final duration per image
+                const durationValue = durationInput.value.trim();
+
+                try {
+                    if (durationValue === '') {
+                         // Duration is empty - calculate it
+                         updateJobStatus(slot, 'Pending', 'Calculating audio duration...');
+                         const audioDuration = await getAudioDuration(audioFile); // Await the promise
+
+                         if (imageFiles.length > 0) {
+                             imageDuration = audioDuration / imageFiles.length;
+                             console.log(`Job ${jobId}: Calculated image duration: ${imageDuration.toFixed(4)}s (${audioDuration.toFixed(3)}s / ${imageFiles.length} images)`);
+                             if (imageDuration <= 0.01) { // Add a minimum sensible duration check
+                                 throw new Error(`Calculated duration (${imageDuration.toFixed(4)}s) is too short. Check audio length or number of images.`);
+                             }
+                             updateJobStatus(slot, 'Pending', `Auto duration: ${imageDuration.toFixed(3)}s/image`);
+                         } else {
+                             // This case should already be caught by imageFiles.length === 0 check, but good practice
+                              throw new Error('Cannot calculate duration: No images selected.');
+                         }
+                    } else {
+                        // Duration is provided - parse and validate it
+                        imageDuration = parseFloat(durationValue);
+                        if (isNaN(imageDuration) || imageDuration <= 0) {
+                             throw new Error('Invalid image duration provided. Must be a positive number.');
+                        }
+                         updateJobStatus(slot, 'Pending', `User duration: ${imageDuration}s/image`);
+                    }
+
+                    // If we reached here, duration is valid (either parsed or calculated)
+                    return { // Return the job data object
+                        id: jobId,
+                        slotElement: slot,
+                        imageFiles: imageFiles,
+                        audioFile: audioFile,
+                        imageDuration: imageDuration, // Use the determined duration
+                        outputFormat: outputFormat,
+                        statusDiv,
+                        messageDiv,
+                        videoEl,
+                        downloadEl
+                    };
+
+                } catch (error) {
+                    console.error(`Job ${jobId}: Validation/Duration Error - ${error.message}`);
+                    updateJobStatus(slot, 'Error', `Setup failed: ${error.message}`);
+                    return null; // Mark job as invalid
+                }
+            }); // End of map
+
+            // Wait for all validation/duration calculations and filter out invalid jobs
+            const resolvedJobs = await Promise.all(jobPromises);
+            jobs = resolvedJobs.filter(job => job !== null); // Filter out nulls (invalid jobs)
+
+            if (jobs.length === 0) {
+                alert("No valid jobs found to process. Please check errors in each job slot and try again.");
+                // Reset UI from processing state
+                isProcessing = false;
+                startAllButton.disabled = jobSlots.length === 0; // Re-enable based on if slots exist
+                addJobButton.disabled = false;
+                document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = false);
+                overallProgressContainer.style.display = 'none';
+                updateStartButtonState(); // Ensure correct button state
+                return; // Exit early
+            }
+
+            // 2. Start Actual Processing Loop (only valid jobs are in the 'jobs' array now)
+            overallProgressText.textContent = `Starting processing for ${jobs.length} valid job(s)...`;
+
+            // 3. Process jobs sequentially
+            for (let i = 0; i < jobs.length; i++) {
+                currentJobIndex = i;
+                const job = jobs[i];
+
+                // Update overall progress bar for the start of this job
+                const overallProgress = (i / jobs.length) * 100;
+                overallProgressBar.style.width = `${overallProgress}%`;
+                overallProgressBar.textContent = `${overallProgress.toFixed(0)}%`;
+                overallProgressText.textContent = `Starting Job ${i + 1} of ${jobs.length} (ID: ${job.id})...`;
+                updateJobStatus(job.slotElement, 'Processing', 'Starting FFmpeg...'); // Update individual job status
+
+                logElement.textContent = `--- Starting Job ${i + 1} (ID: ${job.id}) ---\n`; // Clear log for new job
+                logContainer.style.display = 'block'; // Show log container for this job
+
+                // Process this single job
+                const success = await processSingleJob(job); // processSingleJob remains largely the same
+
+                if (success) {
+                    // Status and message already set in processSingleJob on success
+                    logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) Finished Successfully ---\n`;
+                } else {
+                    // Error status/message already set in processSingleJob on failure
+                    logElement.textContent += `\n--- Job ${i + 1} (ID: ${job.id}) FAILED ---\n`;
+                     // Optionally break or continue on error
+                     // break; // Uncomment to stop all processing on first error
+                }
+            }
+
+            // 4. Finish
+            isProcessing = false;
+            currentJobIndex = -1;
+            addJobButton.disabled = false;
+            document.querySelectorAll('.remove-job-button').forEach(btn => btn.disabled = false);
+            overallProgressBar.style.width = '100%';
+            overallProgressBar.textContent = '100%';
+            overallProgressText.textContent = `Processing Complete (${jobs.length} jobs processed).`;
+            updateStartButtonState(); // Final check on start button state
+        }
+
+        // --- Process a Single Job (Mostly Unchanged) ---
+        // This function now receives the final, calculated/validated imageDuration
+        async function processSingleJob(job) {
+            const { id, slotElement, imageFiles, audioFile, imageDuration, outputFormat, statusDiv, messageDiv, videoEl, downloadEl } = job;
+            const uniquePrefix = `job${id}_`; // Unique prefix for files in this job
+            let inputPattern = '';
+            let imageExtension = '.png'; // Default
+            let tempImageFilenames = [];
+            const tempAudioFilename = `${uniquePrefix}audio${getFileExtension(audioFile.name)}`;
+            const outputFilename = `${uniquePrefix}output.${outputFormat}`;
+
+            updateJobStatus(slotElement, 'Processing', 'Preparing files...');
+
+            try {
+                // --- 1. Write Input Files to FFmpeg FS ---
+                messageDiv.textContent = `Uploading ${imageFiles.length} images...`;
+
+                // Determine input pattern and write images with unique names
+                const firstImageName = imageFiles[0].name;
+                // Improved regex to handle various naming (prefix_001.ext, 001.ext, img-1.ext etc.)
+                const nameParts = firstImageName.match(/^(.*?)(\d+)(\.\w+)$/);
+                let startNumber = 1; // Default start number for sequential pattern
+
+                if (nameParts) {
+                    const prefix = nameParts[1] || ''; // Handle cases like '001.png' where prefix is empty
+                    const numberString = nameParts[2];
+                    const suffix = nameParts[3];
+                    const padding = numberString.length;
+                    // FFmpeg pattern requires the unique job prefix
+                    inputPattern = `${uniquePrefix}${prefix}%0${padding}d${suffix}`;
+                    imageExtension = suffix;
+                    startNumber = parseInt(numberString, 10); // Get the starting number if pattern detected
+                    console.log(`Job ${id}: Detected image pattern: ${inputPattern}, starting num: ${startNumber}, padding: ${padding}`);
+                } else {
+                    // Fallback: Use a generic pattern if specific sequence isn't detected
+                    console.warn(`Job ${id}: Could not detect standard sequence naming in '${firstImageName}'. Using fallback pattern.`);
+                     imageExtension = getFileExtension(firstImageName) || '.img'; // Need some extension
+                     // Using %d assumes sequence 1, 2, 3...
+                     inputPattern = `${uniquePrefix}image-%d${imageExtension}`;
+                     startNumber = 1; // Fallback starts at 1
+                }
+
+                 for (let i = 0; i < imageFiles.length; i++) {
+                     const file = imageFiles[i];
+                     // Generate the target filename based on the determined pattern logic
+                     let targetFilename;
+                     const currentNumber = startNumber + i; // Calculate the sequence number for this file
+
+                     if (nameParts) {
+                          const prefix = nameParts[1] || '';
+                          const suffix = nameParts[3];
+                          const padding = nameParts[2].length;
+                          targetFilename = `${uniquePrefix}${prefix}${currentNumber.toString().padStart(padding, '0')}${suffix}`;
+                     } else {
+                          // Fallback uses the generic pattern structure
+                          targetFilename = `${uniquePrefix}image-${currentNumber}${imageExtension}`;
+                     }
+
+                     tempImageFilenames.push(targetFilename);
+                     // console.log(`Job ${id}: Writing image ${i + 1}/${imageFiles.length}: ${file.name} as ${targetFilename}`);
+                     const data = await readFileAsUint8Array(file);
+                     await ffmpegInstance.writeFile(targetFilename, data);
+                 }
+
+
+                messageDiv.textContent = 'Uploading audio...';
+                // console.log(`Job ${id}: Writing audio: ${audioFile.name} as ${tempAudioFilename}`);
+                const audioData = await readFileAsUint8Array(audioFile);
+                await ffmpegInstance.writeFile(tempAudioFilename, audioData);
+
+                // --- 2. Construct and Execute FFmpeg Command ---
+                 messageDiv.textContent = `Running conversion (duration/img: ${imageDuration.toFixed(3)}s)...`;
+                 // Calculate framerate based on the *final* image duration
+                 const effectiveFrameRate = 1 / imageDuration;
+
+                 const command = [
+                     '-framerate', effectiveFrameRate.toString(),
+                     '-start_number', startNumber.toString(), // Specify start number for sequence
+                     '-i', inputPattern,                // Use the pattern with unique prefix
+                     '-i', tempAudioFilename,           // Use the unique audio filename
+                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p', // Ensure even dimensions and pixel format in filtergraph
+                     '-c:v', 'libx264',                 // H.264 is widely compatible
+                     // '-pix_fmt', 'yuv420p', // Moved format to vf for better compatibility
+                     '-crf', '23',                      // Constant Rate Factor (lower=better quality, larger file)
+                     '-preset', 'medium',              // Encoding speed vs compression
+                     '-c:a', 'aac',                     // AAC is widely compatible
+                     '-b:a', '128k',
+                     '-movflags', '+faststart',         // Good for web playback
+                     '-shortest',                       // Finish encoding when the shortest input stream ends
+                     outputFilename                     // Use the unique output filename
+                 ];
+
+                console.log(`Job ${id}: Executing FFmpeg command:`, command.join(' ')); // Join the array to form the command string for logging
+                await ffmpegInstance.exec(command);
+                console.log(`Job ${id}: FFmpeg execution finished.`);
+
+                // --- 3. Read Output and Display ---
+                messageDiv.textContent = 'Reading output file...';
+                const outputData = await ffmpegInstance.readFile(outputFilename);
+                console.log(`Job ${id}: Output file read successfully (${(outputData.length / 1024 / 1024).toFixed(2)} MB).`);
+
+                const mimeTypeMap = { 'mp4': 'video/mp4', 'mov': 'video/quicktime' };
+                const mimeType = mimeTypeMap[outputFormat] || 'video/mp4';
+                const videoBlob = new Blob([outputData.buffer], { type: mimeType });
+                const videoUrl = URL.createObjectURL(videoBlob);
+
+                 // Update UI elements
+                videoEl.src = videoUrl;
+                videoEl.style.display = 'block';
+                downloadEl.href = videoUrl;
+                downloadEl.download = `job${id}_output.${outputFormat}`; // Give a meaningful download name
+                downloadEl.style.display = 'inline-block';
+
+                // Final success status for this job
+                 updateJobStatus(slotElement, 'Success', `Video created (${(outputData.length / 1024 / 1024).toFixed(2)} MB)`);
+
+                return true; // Indicate success
+
+            } catch (error) {
+                console.error(`Error during conversion for Job ${id}:`, error);
+                updateJobStatus(slotElement, 'Error', `Conversion failed: ${error.message || 'Unknown FFmpeg error'}`);
+                videoEl.style.display = 'none'; // Hide player on error
+                downloadEl.style.display = 'none'; // Hide download on error
+                 if (downloadEl.href && downloadEl.href.startsWith('blob:')) {
+                     URL.revokeObjectURL(downloadEl.href); // Clean up potentially created blob URL
+                     downloadEl.href = '';
+                 }
+                return false; // Indicate failure
+
+            } finally {
+                // --- 4. Cleanup FFmpeg FS for this job ---
+                console.log(`Job ${id}: Cleaning up virtual filesystem...`);
+                try {
+                    for (const filename of tempImageFilenames) {
+                        try { await ffmpegInstance.deleteFile(filename); } catch (e) { /* ignore */ }
+                    }
+                    try { await ffmpegInstance.deleteFile(tempAudioFilename); } catch (e) { /* ignore */ }
+                    // Only delete output if it was successfully read (or maybe always try to delete?)
+                    try { await ffmpegInstance.deleteFile(outputFilename); } catch (e) { /* ignore */ }
+                    console.log(`Job ${id}: Virtual filesystem cleanup attempt complete.`);
+                } catch (cleanupError) {
+                    console.warn(`Job ${id}: Error during virtual filesystem cleanup:`, cleanupError);
+                    // Don't mark the job as failed just because cleanup failed, but log it.
+                    messageDiv.textContent += ' (Cleanup warning - see console)';
+                }
+            }
+        }
+
+        // --- UI Update Helpers ---
+        function updateJobStatus(slotElement, statusType, message) {
+             const statusDiv = slotElement.querySelector('.job-output .status');
+             const messageDiv = slotElement.querySelector('.job-output .message');
+             if (statusDiv) {
+                 statusDiv.textContent = `Status: ${statusType}`;
+                 statusDiv.className = `status ${statusType.toLowerCase()}`; // Add class for styling
+             }
+             if (messageDiv) {
+                 messageDiv.textContent = message;
+             }
+        }
+
+        function getFileExtension(filename) {
+            const lastDot = filename.lastIndexOf('.');
+            if (lastDot === -1) return ''; // No extension
+            return filename.substring(lastDot).toLowerCase(); // Includes the dot, lowercase
+        }
+
+
+        // --- Initial Setup ---
+        window.addEventListener('load', () => {
+            addJobButton.disabled = false;
+            startAllButton.textContent = 'Load FFmpeg & Start All';
+            startAllButton.disabled = true; // Disabled until FFmpeg loads and jobs are added
+            // Add the first job slot automatically
+            addJobSlot();
+             // Attempt to load FFmpeg on page load for faster startup when user clicks Start
+             // Don't block UI, let it load in the background
+             loadFFmpeg().then(loaded => {
+                 if(loaded) updateStartButtonState(); // Update state once loaded
+             });
         });
 
-        statusDiv.textContent = `Processing complete. ${successCount} file(s) processed successfully. ${emptyCount} resulted in empty content. ${errorCount} file(s) had errors.`;
+        addJobButton.addEventListener('click', addJobSlot);
+        startAllButton.addEventListener('click', runAllJobs);
 
-        if (successCount > 0 || emptyCount > 0) { // Enable download if at least one file has non-null content (even if empty string)
-            downloadButton.disabled = false;
-             logArea.value += `\nReady to download ${successCount + emptyCount} cleaned file(s) in a ZIP archive.`;
-        } else {
-            downloadButton.disabled = true;
-            logArea.value += `\nNo files were successfully processed. Download disabled.`;
-             if (errorCount > 0) {
-                 errorDiv.textContent = `Could not process ${errorCount} file(s). Check log for details.`;
-             }
-        }
-    });
-
-    downloadButton.addEventListener('click', () => {
-        if (processedFiles.length === 0 || downloadButton.disabled) {
-            return;
-        }
-
-        const filesToZip = processedFiles.filter(pf => pf.content !== null); // Only zip files with non-null content (includes empty strings)
-
-        if (filesToZip.length === 0) {
-             errorDiv.textContent = "No files available to download (all resulted in errors or were skipped).";
-             return;
-        }
-
-
-        statusDiv.textContent = 'Creating ZIP file...';
-        logArea.value += '\nCreating ZIP file...';
-        downloadButton.disabled = true; // Prevent double-clicks
-        errorDiv.textContent = ''; // Clear previous download errors
-
-        try {
-            const zip = new JSZip();
-
-            filesToZip.forEach(fileData => {
-                // Add file to zip. Use cleanedName. Content can be empty string.
-                zip.file(fileData.cleanedName, fileData.content || ""); // Use empty string if content is null/undefined somehow, though filter should prevent null
-            });
-
-            // Generate the ZIP file as a blob
-            zip.generateAsync({ type: "blob" })
-                .then(function (blob) {
-                    // Create a link element to trigger the download
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.href = url;
-                    link.download = 'cleaned_files.zip'; // Name of the downloaded zip file
-                    document.body.appendChild(link); // Required for Firefox
-                    link.click();
-
-                    // Clean up
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-
-                    statusDiv.textContent = 'ZIP file download initiated.';
-                    logArea.value += '\nZIP file download initiated.';
-                    // Keep button disabled? Or re-enable? Maybe keep disabled until new files are uploaded.
-                    // downloadButton.disabled = false; // Re-enable if desired
-
-                })
-                .catch(function (err) {
-                    console.error("ZIP Generation/Download error:", err);
-                    errorDiv.textContent = `Failed to create or download ZIP file: ${err.message}`;
-                    statusDiv.textContent = 'ZIP creation failed.';
-                    logArea.value += `\nError creating ZIP: ${err.message}`;
-                    downloadButton.disabled = false; // Re-enable button on error
-                });
-
-        } catch (err) {
-            console.error("JSZip initialization or file adding error:", err);
-            errorDiv.textContent = `Failed to prepare files for zipping: ${err.message}`;
-            statusDiv.textContent = 'ZIP creation failed.';
-            logArea.value += `\nError preparing ZIP: ${err.message}`;
-            downloadButton.disabled = false; // Re-enable button on error
-        }
-    });
-</script>
-
+    </script>
 </body>
 </html>
