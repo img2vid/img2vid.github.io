@@ -863,30 +863,19 @@
             });
         });
 
-        // Thread count selection handling
-        document.getElementById('threads').addEventListener('change', function(e) {
-           // Thread count selection handling (continued)
-        document.getElementById('threads').addEventListener('change', function(e) {
-            const selection = e.target.value;
-            const customThreadsInput = document.getElementById('customThreads');
-            const isCustom = selection === 'custom';
-            
-            customThreadsInput.disabled = !isCustom;
-            customThreadsInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
-            
-            currentThreadCount = calculateThreadCount(selection);
-            document.getElementById('activeThreadsValue').textContent = currentThreadCount;
-            document.getElementById('threadsValue').textContent = currentThreadCount;
-        });
+// Thread count selection handling
+document.getElementById('threads').addEventListener('change', function(e) {
+    const selection = e.target.value;
+    const customThreadsInput = document.getElementById('customThreads');
+    const isCustom = selection === 'custom';
 
-        // Custom threads input handling
-        document.getElementById('customThreads').addEventListener('input', function(e) {
-            if (document.getElementById('threads').value === 'custom') {
-                currentThreadCount = calculateThreadCount('custom');
-                document.getElementById('activeThreadsValue').textContent = currentThreadCount;
-                document.getElementById('threadsValue').textContent = currentThreadCount;
-            }
-        });
+    customThreadsInput.disabled = !isCustom;
+    customThreadsInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
+
+    currentThreadCount = calculateThreadCount(selection);
+    document.getElementById('activeThreadsValue').textContent = currentThreadCount;
+    document.getElementById('threadsValue').textContent = currentThreadCount;
+});
 
         // File input handling
         document.getElementById('videoFile').addEventListener('change', function(e) {
