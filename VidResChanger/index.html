@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>High-Speed FFmpeg WASM Video Upscaler</title>
-    <script src="./ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
     <style>
         * {
             margin: 0;
@@ -465,6 +466,50 @@
             color: #ccc;
             font-size: 0.9em;
         }
+
+        .initialization-status {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+
+        .initialization-status h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1em;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ffd700;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .status-dot.success {
+            background: #27ae60;
+            animation: none;
+        }
+
+        .status-dot.error {
+            background: #e74c3c;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -475,6 +520,14 @@
         </div>
 
         <div class="main-content">
+            <div class="initialization-status" id="initStatus">
+                <h3>🔧 System Status</h3>
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Initializing FFmpeg WASM...</span>
+                </div>
+            </div>
+
             <div class="upload-section">
                 <h3>1. Select Video File</h3>
                 <p>Choose a video to begin the high-speed upscaling process.</p>
@@ -590,6 +643,7 @@
         let currentSpeedMode = 'ultra-fast';
         let startTime;
         let videoMetadata = {};
+        let isFFmpegReady = false;
 
         const processBtn = document.getElementById('processBtn');
         const progressSection = document.getElementById('progressSection');
@@ -598,6 +652,9 @@
         const logsContainer = document.getElementById('logs');
         const videoPreview = document.getElementById('videoPreview');
         const performanceStats = document.getElementById('performanceStats');
+        const initStatus = document.getElementById('initStatus');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
 
         // Speed mode configurations
         const speedModes = {
@@ -631,9 +688,11 @@
             }
         };
 
-        // Initialize FFmpeg with optimizations
+        // Initialize FFmpeg with proper CDN URLs
         async function initFFmpeg() {
             try {
+                statusText.textContent = 'Loading FFmpeg WASM...';
+                
                 const { FFmpeg } = FFmpegWASM;
                 ffmpeg = new FFmpeg();
 
@@ -679,19 +738,28 @@
                     frameCount++;
                 });
 
-                // Load FFmpeg with CDN URLs
+                // Load FFmpeg with correct CDN URLs
                 await ffmpeg.load({
-                    coreURL: "./ffmpeg-core.js",
-                    wasmURL: "./ffmpeg-core.wasm",
-                    // Enable multi-threading for better performance
-                    classWorkerURL: "./ffmpeg-core.worker.js"
+                    coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js",
+                    wasmURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm"
                 });
 
-                console.log('FFmpeg loaded successfully with optimizations.');
+                isFFmpegReady = true;
+                statusDot.classList.add('success');
+                statusText.textContent = 'FFmpeg ready! Select a video to begin.';
+                
+                // Hide initialization status after success
+                setTimeout(() => {
+                    initStatus.style.display = 'none';
+                }, 2000);
+
+                console.log('FFmpeg loaded successfully!');
                 return true;
             } catch (error) {
-                showError('Failed to initialize FFmpeg. Please ensure you have a modern browser with SharedArrayBuffer support.');
-                console.error(error);
+                statusDot.classList.add('error');
+                statusText.textContent = 'FFmpeg initialization failed. Please refresh and try again.';
+                showError('Failed to initialize FFmpeg. Please ensure you have a modern browser and try refreshing the page.');
+                console.error('FFmpeg initialization error:', error);
                 return false;
             }
         }
@@ -711,7 +779,11 @@
             if (file) {
                 inputFile = file;
                 document.getElementById('fileName').textContent = `Selected: ${file.name}`;
-                processBtn.disabled = false;
+                
+                // Only enable processing if FFmpeg is ready
+                if (isFFmpegReady) {
+                    processBtn.disabled = false;
+                }
                 
                 // Clear previous previews and logs
                 videoPreview.innerHTML = '';
