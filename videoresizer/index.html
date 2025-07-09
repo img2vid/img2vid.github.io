@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>High-Speed FFmpeg WASM Video Upscaler</title>
+    <title>High-Speed FFmpeg WASM Video Resizer</title>
     <script src="./ffmpeg.js"></script>
     <style>
         * {
@@ -515,8 +515,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚡ Ultra-Fast Video Upscaler</h1>
-            <p>Lightning-speed 4K/8K upscaling with advanced optimizations</p>
+            <h1>⚡ Ultra-Fast Video Resizer</h1>
+            <p>Lightning-speed video resizing to 4K/8K with advanced optimizations</p>
         </div>
 
         <div class="main-content">
@@ -530,7 +530,7 @@
 
             <div class="upload-section">
                 <h3>1. Select Video File</h3>
-                <p>Choose a video to begin the high-speed upscaling process.</p>
+                <p>Choose a video to begin the high-speed resizing process.</p>
                 <input type="file" id="videoFile" class="file-input" accept="video/*">
                 <button class="upload-btn" onclick="document.getElementById('videoFile').click()">
                     Choose Video
@@ -855,7 +855,7 @@
             if (title !== 'Original Video') {
                 const downloadBtn = document.createElement('a');
                 downloadBtn.className = 'download-btn';
-                downloadBtn.textContent = '⬇️ Download Upscaled Video';
+                downloadBtn.textContent = '⬇️ Download Resized Video';
                 downloadBtn.href = video.src;
                 downloadBtn.download = `upscaled_${inputFile.name}`;
                 videoContainer.appendChild(downloadBtn);
