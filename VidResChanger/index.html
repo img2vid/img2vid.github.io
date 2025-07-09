@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Speed FFmpeg WASM Video Upscaler</title>
+    <script src="./ffmpeg.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #555;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-section:hover {
+            border-color: #ff6b6b;
+            background: linear-gradient(135deg, #3a3a3a 0%, #4a4a4a 100%);
+            transform: translateY(-2px);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+        }
+
+        .upload-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+
+        .upload-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .control-group {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid #444;
+            transition: all 0.3s ease;
+        }
+
+        .control-group:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .control-group select, .control-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            font-size: 1em;
+            background: #1a1a1a;
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+
+        .control-group select:focus, .control-group input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
+        }
+
+        .speed-controls {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #4a4a4a;
+        }
+
+        .speed-controls h3 {
+            margin-bottom: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        .speed-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .speed-option {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .speed-option:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .speed-option.selected {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .process-btn {
+            background: linear-gradient(135deg, #10ac84 0%, #00d2d3 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 172, 132, 0.3);
+            margin-right: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .process-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(16, 172, 132, 0.4);
+        }
+
+        .process-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .process-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+
+        .process-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .progress-section {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: none;
+            border: 1px solid #444;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            border: 1px solid #555;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b 0%, #ee5a24 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .progress-text {
+            text-align: center;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .video-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .video-container {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid #444;
+            transition: all 0.3s ease;
+        }
+
+        .video-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .video-container h3 {
+            margin-bottom: 15px;
+            color: #fff;
+            text-align: center;
+        }
+
+        .video-container video {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .video-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid #555;
+        }
+
+        .video-info div {
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 20px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+            margin-top: 15px;
+            width: 100%;
+            display: block;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+        }
+
+        .logs {
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: none;
+            margin-top: 20px;
+            border: 1px solid #333;
+        }
+
+        .error {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            border: 1px solid #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        .performance-stats {
+            background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #444;
+        }
+
+        .performance-stats h3 {
+            color: white;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .stat-label {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Ultra-Fast Video Upscaler</h1>
+            <p>Lightning-speed 4K/8K upscaling with advanced optimizations</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <h3>1. Select Video File</h3>
+                <p>Choose a video to begin the high-speed upscaling process.</p>
+                <input type="file" id="videoFile" class="file-input" accept="video/*">
+                <button class="upload-btn" onclick="document.getElementById('videoFile').click()">
+                    Choose Video
+                </button>
+                <p id="fileName" style="margin-top: 15px; color: #ccc;"></p>
+            </div>
+
+            <div class="speed-controls">
+                <h3>⚡ Speed Mode Selection</h3>
+                <div class="speed-options">
+                    <div class="speed-option selected" data-mode="ultra-fast">
+                        <strong>Ultra Fast</strong><br>
+                        <small>Nearest neighbor, ultra-fast preset</small>
+                    </div>
+                    <div class="speed-option" data-mode="fast">
+                        <strong>Fast</strong><br>
+                        <small>Bilinear, fast preset</small>
+                    </div>
+                    <div class="speed-option" data-mode="balanced">
+                        <strong>Balanced</strong><br>
+                        <small>Bicubic, medium preset</small>
+                    </div>
+                    <div class="speed-option" data-mode="quality">
+                        <strong>Quality</strong><br>
+                        <small>Lanczos, slow preset</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label for="targetResolution">Target Resolution:</label>
+                    <select id="targetResolution">
+                        <option value="2x">2x Current Resolution</option>
+                        <option value="4x">4x Current Resolution</option>
+                        <option value="4k">4K (3840x2160)</option>
+                        <option value="8k">8K (7680x4320)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="customWidth">Custom Width:</label>
+                    <input type="number" id="customWidth" placeholder="3840" min="1" max="7680" disabled>
+                </div>
+
+                <div class="control-group">
+                    <label for="customHeight">Custom Height:</label>
+                    <input type="number" id="customHeight" placeholder="2160" min="1" max="4320" disabled>
+                </div>
+
+                <div class="control-group">
+                    <label for="threads">CPU Threads:</label>
+                    <select id="threads">
+                        <option value="auto">Auto Detect</option>
+                        <option value="2">2 Threads</option>
+                        <option value="4">4 Threads</option>
+                        <option value="8">8 Threads</option>
+                        <option value="16">16 Threads</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="performance-stats" id="performanceStats" style="display: none;">
+                <h3>📊 Performance Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="fpsValue">--</div>
+                        <div class="stat-label">FPS</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="speedValue">--</div>
+                        <div class="stat-label">Speed</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="etaValue">--</div>
+                        <div class="stat-label">ETA</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="threadsValue">--</div>
+                        <div class="stat-label">Threads</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <button class="process-btn" id="processBtn" onclick="processVideo()" disabled>
+                    ⚡ Ultra-Fast Process
+                </button>
+            </div>
+
+            <div class="error" id="errorMsg"></div>
+
+            <div class="progress-section" id="progressSection">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Initializing...</div>
+            </div>
+
+            <div class="video-preview" id="videoPreview"></div>
+
+            <div class="logs" id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        let ffmpeg;
+        let inputFile;
+        let currentSpeedMode = 'ultra-fast';
+        let startTime;
+        let videoMetadata = {};
+
+        const processBtn = document.getElementById('processBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const logsContainer = document.getElementById('logs');
+        const videoPreview = document.getElementById('videoPreview');
+        const performanceStats = document.getElementById('performanceStats');
+
+        // Speed mode configurations
+        const speedModes = {
+            'ultra-fast': {
+                preset: 'ultrafast',
+                crf: 28,
+                scale: 'neighbor',
+                threads: 'auto',
+                tune: 'fastdecode'
+            },
+            'fast': {
+                preset: 'veryfast',
+                crf: 25,
+                scale: 'bilinear',
+                threads: 'auto',
+                tune: 'fastdecode'
+            },
+            'balanced': {
+                preset: 'medium',
+                crf: 23,
+                scale: 'bicubic',
+                threads: 'auto',
+                tune: null
+            },
+            'quality': {
+                preset: 'slow',
+                crf: 20,
+                scale: 'lanczos',
+                threads: 'auto',
+                tune: null
+            }
+        };
+
+        // Initialize FFmpeg with optimizations
+        async function initFFmpeg() {
+            try {
+                const { FFmpeg } = FFmpegWASM;
+                ffmpeg = new FFmpeg();
+
+                let lastTime = Date.now();
+                let frameCount = 0;
+                let lastProgress = 0;
+
+                ffmpeg.on('log', ({ message }) => {
+                    logsContainer.textContent += message + '\n';
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                    
+                    // Extract performance metrics
+                    if (message.includes('fps=')) {
+                        const fpsMatch = message.match(/fps=\s*(\d+\.?\d*)/);
+                        if (fpsMatch) {
+                            document.getElementById('fpsValue').textContent = Math.round(parseFloat(fpsMatch[1]));
+                        }
+                    }
+                    
+                    if (message.includes('speed=')) {
+                        const speedMatch = message.match(/speed=\s*(\d+\.?\d*)x/);
+                        if (speedMatch) {
+                            document.getElementById('speedValue').textContent = parseFloat(speedMatch[1]).toFixed(1) + 'x';
+                        }
+                    }
+                });
+
+                ffmpeg.on('progress', ({ progress }) => {
+                    const currentTime = Date.now();
+                    const percentage = Math.round(progress * 100);
+                    
+                    progressFill.style.width = percentage + '%';
+                    progressText.textContent = `Processing: ${percentage}%`;
+                    
+                    // Calculate ETA
+                    if (progress > 0.01) {
+                        const elapsed = (currentTime - startTime) / 1000;
+                        const eta = (elapsed / progress) * (1 - progress);
+                        document.getElementById('etaValue').textContent = formatTime(eta);
+                    }
+                    
+                    lastProgress = progress;
+                    frameCount++;
+                });
+
+                // Load FFmpeg with CDN URLs
+                await ffmpeg.load({
+                    coreURL: "./ffmpeg-core.js",
+                    wasmURL: "./ffmpeg-core.wasm",
+                    // Enable multi-threading for better performance
+                    classWorkerURL: "./ffmpeg-core.worker.js"
+                });
+
+                console.log('FFmpeg loaded successfully with optimizations.');
+                return true;
+            } catch (error) {
+                showError('Failed to initialize FFmpeg. Please ensure you have a modern browser with SharedArrayBuffer support.');
+                console.error(error);
+                return false;
+            }
+        }
+
+        // Speed mode selection
+        document.querySelectorAll('.speed-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.speed-option').forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                currentSpeedMode = this.dataset.mode;
+            });
+        });
+
+        // Handle file selection with metadata extraction
+        document.getElementById('videoFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                inputFile = file;
+                document.getElementById('fileName').textContent = `Selected: ${file.name}`;
+                processBtn.disabled = false;
+                
+                // Clear previous previews and logs
+                videoPreview.innerHTML = '';
+                logsContainer.textContent = '';
+                logsContainer.style.display = 'none';
+                progressSection.style.display = 'none';
+                performanceStats.style.display = 'none';
+
+                // Create preview and extract metadata
+                extractVideoMetadata(file);
+            }
+        });
+
+        // Extract video metadata for optimization
+        function extractVideoMetadata(file) {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            
+            video.addEventListener('loadedmetadata', function() {
+                videoMetadata = {
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    duration: video.duration,
+                    aspectRatio: video.videoWidth / video.videoHeight
+                };
+                
+                // Auto-set optimal thread count based on video complexity
+                const pixels = video.videoWidth * video.videoHeight;
+                const optimalThreads = Math.min(navigator.hardwareConcurrency || 4, 
+                    pixels > 2073600 ? 8 : pixels > 921600 ? 4 : 2); // 1080p = 2073600, 720p = 921600
+                
+                document.getElementById('threads').value = optimalThreads.toString();
+                document.getElementById('threadsValue').textContent = optimalThreads;
+                
+                createVideoPreview(file, 'Original Video');
+                URL.revokeObjectURL(video.src);
+            });
+        }
+
+        // Create video preview with enhanced info
+        function createVideoPreview(fileOrBlob, title) {
+            const videoContainer = document.createElement('div');
+            videoContainer.className = 'video-container';
+            
+            const video = document.createElement('video');
+            video.controls = true;
+            video.src = URL.createObjectURL(fileOrBlob);
+            
+            const videoInfo = document.createElement('div');
+            videoInfo.className = 'video-info';
+            
+            video.addEventListener('loadedmetadata', function() {
+                const fileSize = (fileOrBlob.size / (1024 * 1024)).toFixed(2);
+                const bitrate = ((fileOrBlob.size * 8) / video.duration / 1000).toFixed(0);
+                
+                videoInfo.innerHTML = `
+                    <div><strong>Resolution:</strong> ${video.videoWidth}x${video.videoHeight}</div>
+                    <div><strong>Duration:</strong> ${formatTime(video.duration)}</div>
+                    <div><strong>File Size:</strong> ${fileSize} MB</div>
+                    <div><strong>Bitrate:</strong> ~${bitrate} kbps</div>
+                    <div><strong>Aspect Ratio:</strong> ${(video.videoWidth / video.videoHeight).toFixed(2)}</div>
+                `;
+            });
+            
+            videoContainer.innerHTML = `<h3>${title}</h3>`;
+            videoContainer.appendChild(video);
+            videoContainer.appendChild(videoInfo);
+            
+            if (title !== 'Original Video') {
+                const downloadBtn = document.createElement('a');
+                downloadBtn.className = 'download-btn';
+                downloadBtn.textContent = '⬇️ Download Upscaled Video';
+                downloadBtn.href = video.src;
+                downloadBtn.download = `upscaled_${inputFile.name}`;
+                videoContainer.appendChild(downloadBtn);
+            }
+            
+            videoPreview.appendChild(videoContainer);
+        }
+
+        // Format time helper
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return 'N/A';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Ultra-optimized video processing
+        async function processVideo() {
+            if (!inputFile) {
+                showError('Please select a video file first.');
+                return;
+            }
+
+            startTime = Date.now();
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<span class="spinner"></span>Ultra-Fast Processing...';
+            progressSection.style.display = 'block';
+            performanceStats.style.display = 'block';
+            logsContainer.style.display = 'block';
+            document.getElementById('errorMsg').style.display = 'none';
+
+            try {
+                // Initialize FFmpeg if not already loaded
+                if (!ffmpeg || !ffmpeg.loaded) {
+                    progressText.textContent = 'Initializing high-speed FFmpeg...';
+                    const loaded = await initFFmpeg();
+                    if (!loaded) return;
+                }
+
+                // Get target resolution
+                const targetRes = document.getElementById('targetResolution').value;
+                const threadsCount = document.getElementById('threads').value;
+                let width, height;
+
+                if (targetRes === 'custom') {
+                    width = parseInt(document.getElementById('customWidth').value);
+                    height = parseInt(document.getElementById('customHeight').value);
+                    if (!width || !height || width <= 0 || height <= 0) {
+                        showError('Please enter valid positive custom dimensions.');
+                        return;
+                    }
+                } else if (targetRes === '2x') {
+                    width = videoMetadata.width * 2;
+                    height = videoMetadata.height * 2;
+                } else if (targetRes === '4x') {
+                    width = videoMetadata.width * 4;
+                    height = videoMetadata.height * 4;
+                } else if (targetRes === '4k') {
+                    width = 3840; height = 2160;
+                } else if (targetRes === '8k') {
+                    width = 7680; height = 4320;
+                }
+
+                // Get speed mode configuration
+                const speedConfig = speedModes[currentSpeedMode];
+                const actualThreads = threadsCount === 'auto' ? navigator.hardwareConcurrency || 4 : parseInt(threadsCount);
+
+                // Write input file to FFmpeg's virtual filesystem
+                progressText.textContent = 'Loading video into memory...';
+                const inputFileName = inputFile.name;
+                const outputFileName = `processed_${inputFileName}`;
+                
+                await ffmpeg.writeFile(inputFileName, new Uint8Array(await inputFile.arrayBuffer()));
+
+                // Build ultra-optimized FFmpeg command
+                const command = [
+                    '-i', inputFileName,
+                    '-threads', actualThreads.toString(),
+                    '-vf', `scale=${width}:${height}:flags=${speedConfig.scale}`,
+                    '-c:v', 'libx264',
+                    '-preset', speedConfig.preset,
+                    '-crf', speedConfig.crf.toString(),
+                    '-x264-params', `threads=${actualThreads}:sliced-threads=1:sync-lookahead=${Math.min(actualThreads, 8)}`,
+                    '-movflags', '+faststart',
+                    '-avoid_negative_ts', 'make_zero'
+                ];
+
+                // Add tuning if specified
+                if (speedConfig.tune) {
+                    command.push('-tune', speedConfig.tune);
+                }
+
+                // Add audio processing (fast copy if possible)
+                command.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
+
+                // Add output file
+                command.push(outputFileName);
+
+                // Execute ultra-fast processing
+                progressText.textContent = 'Executing ultra-fast processing...';
+                await ffmpeg.exec(command);
+
+                // Read the processed file
+                const data = await ffmpeg.readFile(outputFileName);
+                const outputVideoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+
+                // Create preview for the processed video
+                createVideoPreview(outputVideoBlob, `⚡ Upscaled to ${width}x${height} (${currentSpeedMode})`);
+
+                // Calculate final performance metrics
+                const totalTime = (Date.now() - startTime) / 1000;
+                const speedMultiplier = videoMetadata.duration / totalTime;
+                
+                progressText.textContent = `✅ Complete! Processed in ${totalTime.toFixed(1)}s (${speedMultiplier.toFixed(1)}x realtime)`;
+                progressFill.style.width = '100%';
+                
+                document.getElementById('speedValue').textContent = speedMultiplier.toFixed(1) + 'x';
+                document.getElementById('etaValue').textContent = '0:00';
+
+                // Clean up virtual files
+                await ffmpeg.deleteFile(inputFileName);
+                await ffmpeg.deleteFile(outputFileName);
+
+            } catch (error) {
+                showError('Ultra-fast processing failed: ' + error.message);
+                console.error('Processing error:', error);
+            } finally {
+                processBtn.disabled = false;
+                processBtn.innerHTML = '⚡ Ultra-Fast Process';
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMsg');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            progressSection.style.display = 'none';
+            performanceStats.style.display = 'none';
+            processBtn.disabled = false;
+            processBtn.innerHTML = '⚡ Ultra-Fast Process';
+        }
+
+        // Toggle custom resolution input fields
+        document.getElementById('targetResolution').addEventListener('change', function(e) {
+            const customWidthInput = document.getElementById('customWidth');
+            const customHeightInput = document.getElementById('customHeight');
+            const isCustom = e.target.value === 'custom';
+            
+            customWidthInput.disabled = !isCustom;
+            customHeightInput.disabled = !isCustom;
+            customWidthInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
+            customHeightInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
+        });
+
+        // Auto-detect optimal settings based on hardware
+        function optimizeForHardware() {
+            const cores = navigator.hardwareConcurrency || 4;
+            const memory = navigator.deviceMemory || 4; // GB
+            
+            // Suggest optimal speed mode based on hardware
+            if (cores >= 8 && memory >= 8) {
+                // High-end hardware can handle quality mode
+                document.querySelector('[data-mode="balanced"]').click();
+            } else if (cores >= 4 && memory >= 4) {
+                // Mid-range hardware - fast mode
+                document.querySelector('[data-mode="fast"]').click();
+            } else {
+                // Low-end hardware - ultra-fast mode
+                document.querySelector('[data-mode="ultra-fast"]').click();
+            }
+        }
+
+        // Initialize optimizations on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            optimizeForHardware();
+            
+            // Warm up FFmpeg in background for faster first use
+            setTimeout(async () => {
+                if (!ffmpeg) {
+                    console.log('Pre-loading FFmpeg for faster first use...');
+                    await initFFmpeg();
+                }
+            }, 2000);
+        });
+
+        console.log('⚡ Ultra-fast video upscaler initialized with performance optimizations!');
+    </script>
+</body>
+</html>
