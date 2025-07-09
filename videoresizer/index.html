@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -510,13 +509,51 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        .thread-info {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+
+        .thread-info h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .thread-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .thread-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .thread-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .thread-label {
+            color: #ccc;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>⚡ Ultra-Fast Video Resizer</h1>
-            <p>Lightning-speed video resizing to 4K/8K with advanced optimizations</p>
+            <p>Lightning-speed video resizing to 4K/8K with maximum CPU utilization</p>
         </div>
 
         <div class="main-content">
@@ -528,9 +565,27 @@
                 </div>
             </div>
 
+            <div class="thread-info" id="threadInfo">
+                <h3>🚀 CPU Thread Utilization</h3>
+                <div class="thread-details">
+                    <div class="thread-item">
+                        <div class="thread-value" id="totalCoresValue">--</div>
+                        <div class="thread-label">Total CPU Cores</div>
+                    </div>
+                    <div class="thread-item">
+                        <div class="thread-value" id="utilizationValue">100%</div>
+                        <div class="thread-label">CPU Utilization</div>
+                    </div>
+                    <div class="thread-item">
+                        <div class="thread-value" id="activeThreadsValue">--</div>
+                        <div class="thread-label">Active Threads</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="upload-section">
                 <h3>1. Select Video File</h3>
-                <p>Choose a video to begin the high-speed resizing process.</p>
+                <p>Choose a video to begin the maximum-speed resizing process.</p>
                 <input type="file" id="videoFile" class="file-input" accept="video/*">
                 <button class="upload-btn" onclick="document.getElementById('videoFile').click()">
                     Choose Video
@@ -543,19 +598,19 @@
                 <div class="speed-options">
                     <div class="speed-option selected" data-mode="ultra-fast">
                         <strong>Ultra Fast</strong><br>
-                        <small>Nearest neighbor, ultra-fast preset</small>
+                        <small>Nearest neighbor, maximum threads</small>
                     </div>
                     <div class="speed-option" data-mode="fast">
                         <strong>Fast</strong><br>
-                        <small>Bilinear, fast preset</small>
+                        <small>Bilinear, maximum threads</small>
                     </div>
                     <div class="speed-option" data-mode="balanced">
                         <strong>Balanced</strong><br>
-                        <small>Bicubic, medium preset</small>
+                        <small>Bicubic, maximum threads</small>
                     </div>
                     <div class="speed-option" data-mode="quality">
                         <strong>Quality</strong><br>
-                        <small>Lanczos, slow preset</small>
+                        <small>Lanczos, maximum threads</small>
                     </div>
                 </div>
             </div>
@@ -585,12 +640,16 @@
                 <div class="control-group">
                     <label for="threads">CPU Threads:</label>
                     <select id="threads">
-                        <option value="auto">Auto Detect</option>
-                        <option value="2">2 Threads</option>
-                        <option value="4">4 Threads</option>
-                        <option value="8">8 Threads</option>
-                        <option value="16">16 Threads</option>
+                        <option value="max">Maximum (All Cores)</option>
+                        <option value="half">Half Cores</option>
+                        <option value="quarter">Quarter Cores</option>
+                        <option value="custom">Custom</option>
                     </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="customThreads">Custom Threads:</label>
+                    <input type="number" id="customThreads" placeholder="Auto" min="1" max="32" disabled>
                 </div>
             </div>
 
@@ -618,7 +677,7 @@
 
             <div style="text-align: center; margin-bottom: 30px;">
                 <button class="process-btn" id="processBtn" onclick="processVideo()" disabled>
-                    ⚡ Ultra-Fast Process
+                    ⚡ Maximum Speed Process
                 </button>
             </div>
 
@@ -644,6 +703,8 @@
         let startTime;
         let videoMetadata = {};
         let isFFmpegReady = false;
+        let maxCores = navigator.hardwareConcurrency || 4;
+        let currentThreadCount = maxCores;
 
         const processBtn = document.getElementById('processBtn');
         const progressSection = document.getElementById('progressSection');
@@ -656,37 +717,66 @@
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
 
-        // Speed mode configurations
+        // Initialize CPU core information
+        function initializeCPUInfo() {
+            document.getElementById('totalCoresValue').textContent = maxCores;
+            document.getElementById('activeThreadsValue').textContent = maxCores;
+            document.getElementById('customThreads').placeholder = maxCores;
+            document.getElementById('customThreads').max = maxCores;
+            
+            // Update thread selection default
+            document.getElementById('threads').value = 'max';
+            currentThreadCount = maxCores;
+        }
+
+        // Speed mode configurations with maximum threading
         const speedModes = {
             'ultra-fast': {
                 preset: 'ultrafast',
                 crf: 28,
                 scale: 'neighbor',
-                threads: 'auto',
+                threads: 'max',
                 tune: 'fastdecode'
             },
             'fast': {
                 preset: 'veryfast',
                 crf: 25,
                 scale: 'bilinear',
-                threads: 'auto',
+                threads: 'max',
                 tune: 'fastdecode'
             },
             'balanced': {
                 preset: 'medium',
                 crf: 23,
                 scale: 'bicubic',
-                threads: 'auto',
+                threads: 'max',
                 tune: null
             },
             'quality': {
                 preset: 'slow',
                 crf: 20,
                 scale: 'lanczos',
-                threads: 'auto',
+                threads: 'max',
                 tune: null
             }
         };
+
+        // Calculate optimal thread count based on selection
+        function calculateThreadCount(selection) {
+            switch(selection) {
+                case 'max':
+                    return maxCores;
+                case 'half':
+                    return Math.max(1, Math.floor(maxCores / 2));
+                case 'quarter':
+                    return Math.max(1, Math.floor(maxCores / 4));
+                case 'custom':
+                    const customValue = parseInt(document.getElementById('customThreads').value);
+                    return Math.min(maxCores, Math.max(1, customValue || maxCores));
+                default:
+                    return maxCores;
+            }
+        }
 
         // Initialize FFmpeg with proper CDN URLs
         async function initFFmpeg() {
@@ -725,7 +815,7 @@
                     const percentage = Math.round(progress * 100);
                     
                     progressFill.style.width = percentage + '%';
-                    progressText.textContent = `Processing: ${percentage}%`;
+                    progressText.textContent = `Processing with ${currentThreadCount} threads: ${percentage}%`;
                     
                     // Calculate ETA
                     if (progress > 0.01) {
@@ -746,14 +836,14 @@
 
                 isFFmpegReady = true;
                 statusDot.classList.add('success');
-                statusText.textContent = 'FFmpeg ready! Select a video to begin.';
+                statusText.textContent = `FFmpeg ready! Using ${maxCores} CPU cores for maximum speed.`;
                 
                 // Hide initialization status after success
                 setTimeout(() => {
                     initStatus.style.display = 'none';
                 }, 2000);
 
-                console.log('FFmpeg loaded successfully!');
+                console.log('FFmpeg loaded successfully with maximum threading support!');
                 return true;
             } catch (error) {
                 statusDot.classList.add('error');
@@ -773,219 +863,110 @@
             });
         });
 
-        // Handle file selection with metadata extraction
+        // Thread count selection handling
+        document.getElementById('threads').addEventListener('change', function(e) {
+           // Thread count selection handling (continued)
+        document.getElementById('threads').addEventListener('change', function(e) {
+            const selection = e.target.value;
+            const customThreadsInput = document.getElementById('customThreads');
+            const isCustom = selection === 'custom';
+            
+            customThreadsInput.disabled = !isCustom;
+            customThreadsInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
+            
+            currentThreadCount = calculateThreadCount(selection);
+            document.getElementById('activeThreadsValue').textContent = currentThreadCount;
+            document.getElementById('threadsValue').textContent = currentThreadCount;
+        });
+
+        // Custom threads input handling
+        document.getElementById('customThreads').addEventListener('input', function(e) {
+            if (document.getElementById('threads').value === 'custom') {
+                currentThreadCount = calculateThreadCount('custom');
+                document.getElementById('activeThreadsValue').textContent = currentThreadCount;
+                document.getElementById('threadsValue').textContent = currentThreadCount;
+            }
+        });
+
+        // File input handling
         document.getElementById('videoFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
                 inputFile = file;
                 document.getElementById('fileName').textContent = `Selected: ${file.name}`;
+                processBtn.disabled = !isFFmpegReady;
                 
-                // Only enable processing if FFmpeg is ready
-                if (isFFmpegReady) {
-                    processBtn.disabled = false;
-                }
-                
-                // Clear previous previews and logs
-                videoPreview.innerHTML = '';
-                logsContainer.textContent = '';
-                logsContainer.style.display = 'none';
-                progressSection.style.display = 'none';
-                performanceStats.style.display = 'none';
-
-                // Create preview and extract metadata
-                extractVideoMetadata(file);
+                // Get video metadata
+                getVideoMetadata(file);
             }
         });
 
-        // Extract video metadata for optimization
-        function extractVideoMetadata(file) {
-            const video = document.createElement('video');
-            video.src = URL.createObjectURL(file);
+        // Resolution selection handling
+        document.getElementById('targetResolution').addEventListener('change', function(e) {
+            const selection = e.target.value;
+            const customWidth = document.getElementById('customWidth');
+            const customHeight = document.getElementById('customHeight');
+            const isCustom = selection === 'custom';
             
-            video.addEventListener('loadedmetadata', function() {
+            customWidth.disabled = !isCustom;
+            customHeight.disabled = !isCustom;
+            customWidth.parentElement.style.opacity = isCustom ? '1' : '0.5';
+            customHeight.parentElement.style.opacity = isCustom ? '1' : '0.5';
+        });
+
+        // Get video metadata
+        function getVideoMetadata(file) {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            
+            video.onloadedmetadata = function() {
                 videoMetadata = {
                     width: video.videoWidth,
                     height: video.videoHeight,
                     duration: video.duration,
-                    aspectRatio: video.videoWidth / video.videoHeight
+                    size: file.size
                 };
                 
-                // Auto-set optimal thread count based on video complexity
-                const pixels = video.videoWidth * video.videoHeight;
-                const optimalThreads = Math.min(navigator.hardwareConcurrency || 4, 
-                    pixels > 2073600 ? 8 : pixels > 921600 ? 4 : 2); // 1080p = 2073600, 720p = 921600
+                // Update custom resolution placeholders
+                document.getElementById('customWidth').placeholder = video.videoWidth * 2;
+                document.getElementById('customHeight').placeholder = video.videoHeight * 2;
                 
-                document.getElementById('threads').value = optimalThreads.toString();
-                document.getElementById('threadsValue').textContent = optimalThreads;
-                
-                createVideoPreview(file, 'Original Video');
                 URL.revokeObjectURL(video.src);
-            });
+            };
+            
+            video.src = URL.createObjectURL(file);
         }
 
-        // Create video preview with enhanced info
-        function createVideoPreview(fileOrBlob, title) {
-            const videoContainer = document.createElement('div');
-            videoContainer.className = 'video-container';
+        // Calculate target resolution
+        function calculateTargetResolution(selection) {
+            const currentWidth = videoMetadata.width || 1920;
+            const currentHeight = videoMetadata.height || 1080;
             
-            const video = document.createElement('video');
-            video.controls = true;
-            video.src = URL.createObjectURL(fileOrBlob);
-            
-            const videoInfo = document.createElement('div');
-            videoInfo.className = 'video-info';
-            
-            video.addEventListener('loadedmetadata', function() {
-                const fileSize = (fileOrBlob.size / (1024 * 1024)).toFixed(2);
-                const bitrate = ((fileOrBlob.size * 8) / video.duration / 1000).toFixed(0);
-                
-                videoInfo.innerHTML = `
-                    <div><strong>Resolution:</strong> ${video.videoWidth}x${video.videoHeight}</div>
-                    <div><strong>Duration:</strong> ${formatTime(video.duration)}</div>
-                    <div><strong>File Size:</strong> ${fileSize} MB</div>
-                    <div><strong>Bitrate:</strong> ~${bitrate} kbps</div>
-                    <div><strong>Aspect Ratio:</strong> ${(video.videoWidth / video.videoHeight).toFixed(2)}</div>
-                `;
-            });
-            
-            videoContainer.innerHTML = `<h3>${title}</h3>`;
-            videoContainer.appendChild(video);
-            videoContainer.appendChild(videoInfo);
-            
-            if (title !== 'Original Video') {
-                const downloadBtn = document.createElement('a');
-                downloadBtn.className = 'download-btn';
-                downloadBtn.textContent = '⬇️ Download Resized Video';
-                downloadBtn.href = video.src;
-                downloadBtn.download = `upscaled_${inputFile.name}`;
-                videoContainer.appendChild(downloadBtn);
+            switch(selection) {
+                case '2x':
+                    return { width: currentWidth * 2, height: currentHeight * 2 };
+                case '4x':
+                    return { width: currentWidth * 4, height: currentHeight * 4 };
+                case '4k':
+                    return { width: 3840, height: 2160 };
+                case '8k':
+                    return { width: 7680, height: 4320 };
+                case 'custom':
+                    const customWidth = parseInt(document.getElementById('customWidth').value) || currentWidth * 2;
+                    const customHeight = parseInt(document.getElementById('customHeight').value) || currentHeight * 2;
+                    return { width: customWidth, height: customHeight };
+                default:
+                    return { width: currentWidth * 2, height: currentHeight * 2 };
             }
-            
-            videoPreview.appendChild(videoContainer);
         }
 
         // Format time helper
         function formatTime(seconds) {
-            if (isNaN(seconds)) return 'N/A';
+            if (isNaN(seconds) || seconds === Infinity) return '--';
+            
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        // Ultra-optimized video processing
-        async function processVideo() {
-            if (!inputFile) {
-                showError('Please select a video file first.');
-                return;
-            }
-
-            startTime = Date.now();
-            processBtn.disabled = true;
-            processBtn.innerHTML = '<span class="spinner"></span>Ultra-Fast Processing...';
-            progressSection.style.display = 'block';
-            performanceStats.style.display = 'block';
-            logsContainer.style.display = 'block';
-            document.getElementById('errorMsg').style.display = 'none';
-
-            try {
-                // Initialize FFmpeg if not already loaded
-                if (!ffmpeg || !ffmpeg.loaded) {
-                    progressText.textContent = 'Initializing high-speed FFmpeg...';
-                    const loaded = await initFFmpeg();
-                    if (!loaded) return;
-                }
-
-                // Get target resolution
-                const targetRes = document.getElementById('targetResolution').value;
-                const threadsCount = document.getElementById('threads').value;
-                let width, height;
-
-                if (targetRes === 'custom') {
-                    width = parseInt(document.getElementById('customWidth').value);
-                    height = parseInt(document.getElementById('customHeight').value);
-                    if (!width || !height || width <= 0 || height <= 0) {
-                        showError('Please enter valid positive custom dimensions.');
-                        return;
-                    }
-                } else if (targetRes === '2x') {
-                    width = videoMetadata.width * 2;
-                    height = videoMetadata.height * 2;
-                } else if (targetRes === '4x') {
-                    width = videoMetadata.width * 4;
-                    height = videoMetadata.height * 4;
-                } else if (targetRes === '4k') {
-                    width = 3840; height = 2160;
-                } else if (targetRes === '8k') {
-                    width = 7680; height = 4320;
-                }
-
-                // Get speed mode configuration
-                const speedConfig = speedModes[currentSpeedMode];
-                const actualThreads = threadsCount === 'auto' ? navigator.hardwareConcurrency || 4 : parseInt(threadsCount);
-
-                // Write input file to FFmpeg's virtual filesystem
-                progressText.textContent = 'Loading video into memory...';
-                const inputFileName = inputFile.name;
-                const outputFileName = `processed_${inputFileName}`;
-                
-                await ffmpeg.writeFile(inputFileName, new Uint8Array(await inputFile.arrayBuffer()));
-
-                // Build ultra-optimized FFmpeg command
-                const command = [
-                    '-i', inputFileName,
-                    '-threads', actualThreads.toString(),
-                    '-vf', `scale=${width}:${height}:flags=${speedConfig.scale}`,
-                    '-c:v', 'libx264',
-                    '-preset', speedConfig.preset,
-                    '-crf', speedConfig.crf.toString(),
-                    '-x264-params', `threads=${actualThreads}:sliced-threads=1:sync-lookahead=${Math.min(actualThreads, 8)}`,
-                    '-movflags', '+faststart',
-                    '-avoid_negative_ts', 'make_zero'
-                ];
-
-                // Add tuning if specified
-                if (speedConfig.tune) {
-                    command.push('-tune', speedConfig.tune);
-                }
-
-                // Add audio processing (fast copy if possible)
-                command.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
-
-                // Add output file
-                command.push(outputFileName);
-
-                // Execute ultra-fast processing
-                progressText.textContent = 'Executing ultra-fast processing...';
-                await ffmpeg.exec(command);
-
-                // Read the processed file
-                const data = await ffmpeg.readFile(outputFileName);
-                const outputVideoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-
-                // Create preview for the processed video
-                createVideoPreview(outputVideoBlob, `⚡ Upscaled to ${width}x${height} (${currentSpeedMode})`);
-
-                // Calculate final performance metrics
-                const totalTime = (Date.now() - startTime) / 1000;
-                const speedMultiplier = videoMetadata.duration / totalTime;
-                
-                progressText.textContent = `✅ Complete! Processed in ${totalTime.toFixed(1)}s (${speedMultiplier.toFixed(1)}x realtime)`;
-                progressFill.style.width = '100%';
-                
-                document.getElementById('speedValue').textContent = speedMultiplier.toFixed(1) + 'x';
-                document.getElementById('etaValue').textContent = '0:00';
-
-                // Clean up virtual files
-                await ffmpeg.deleteFile(inputFileName);
-                await ffmpeg.deleteFile(outputFileName);
-
-            } catch (error) {
-                showError('Ultra-fast processing failed: ' + error.message);
-                console.error('Processing error:', error);
-            } finally {
-                processBtn.disabled = false;
-                processBtn.innerHTML = '⚡ Ultra-Fast Process';
-            }
         }
 
         // Show error message
@@ -993,56 +974,250 @@
             const errorDiv = document.getElementById('errorMsg');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
-            progressSection.style.display = 'none';
-            performanceStats.style.display = 'none';
-            processBtn.disabled = false;
-            processBtn.innerHTML = '⚡ Ultra-Fast Process';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
         }
 
-        // Toggle custom resolution input fields
-        document.getElementById('targetResolution').addEventListener('change', function(e) {
-            const customWidthInput = document.getElementById('customWidth');
-            const customHeightInput = document.getElementById('customHeight');
-            const isCustom = e.target.value === 'custom';
-            
-            customWidthInput.disabled = !isCustom;
-            customHeightInput.disabled = !isCustom;
-            customWidthInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
-            customHeightInput.parentElement.style.opacity = isCustom ? '1' : '0.5';
-        });
+        // Main video processing function
+        async function processVideo() {
+            if (!inputFile || !isFFmpegReady) {
+                showError('Please select a video file and ensure FFmpeg is loaded.');
+                return;
+            }
 
-        // Auto-detect optimal settings based on hardware
-        function optimizeForHardware() {
-            const cores = navigator.hardwareConcurrency || 4;
-            const memory = navigator.deviceMemory || 4; // GB
-            
-            // Suggest optimal speed mode based on hardware
-            if (cores >= 8 && memory >= 8) {
-                // High-end hardware can handle quality mode
-                document.querySelector('[data-mode="balanced"]').click();
-            } else if (cores >= 4 && memory >= 4) {
-                // Mid-range hardware - fast mode
-                document.querySelector('[data-mode="fast"]').click();
-            } else {
-                // Low-end hardware - ultra-fast mode
-                document.querySelector('[data-mode="ultra-fast"]').click();
+            try {
+                // Reset UI
+                processBtn.disabled = true;
+                processBtn.innerHTML = '<span class="spinner"></span>Processing...';
+                progressSection.style.display = 'block';
+                performanceStats.style.display = 'block';
+                logsContainer.style.display = 'block';
+                logsContainer.textContent = '';
+                videoPreview.innerHTML = '';
+                
+                // Reset progress
+                progressFill.style.width = '0%';
+                progressText.textContent = 'Initializing...';
+                startTime = Date.now();
+
+                // Get target resolution
+                const targetResolution = calculateTargetResolution(document.getElementById('targetResolution').value);
+                const speedConfig = speedModes[currentSpeedMode];
+                
+                // Update thread display
+                document.getElementById('threadsValue').textContent = currentThreadCount;
+
+                // Write input file
+                const inputFileName = 'input.mp4';
+                const outputFileName = `resized_${targetResolution.width}x${targetResolution.height}.mp4`;
+                
+                progressText.textContent = 'Loading video file...';
+                await ffmpeg.writeFile(inputFileName, await fetchFile(inputFile));
+
+                // Build FFmpeg command with maximum performance settings
+                const command = [
+                    '-i', inputFileName,
+                    '-threads', currentThreadCount.toString(),
+                    '-preset', speedConfig.preset,
+                    '-crf', speedConfig.crf.toString(),
+                    '-vf', `scale=${targetResolution.width}:${targetResolution.height}:flags=${speedConfig.scale}`,
+                    '-c:v', 'libx264',
+                    '-movflags', '+faststart',
+                    '-y'
+                ];
+
+                // Add tune parameter if specified
+                if (speedConfig.tune) {
+                    command.splice(-1, 0, '-tune', speedConfig.tune);
+                }
+
+                // Add output file
+                command.push(outputFileName);
+
+                console.log('FFmpeg command:', command.join(' '));
+                progressText.textContent = 'Processing video with maximum speed...';
+
+                // Execute FFmpeg command
+                await ffmpeg.exec(command);
+
+                // Read output file
+                const outputData = await ffmpeg.readFile(outputFileName);
+                const outputBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
+                const outputUrl = URL.createObjectURL(outputBlob);
+
+                // Calculate processing time
+                const processingTime = (Date.now() - startTime) / 1000;
+                
+                // Show results
+                displayResults(inputFile, outputBlob, outputUrl, targetResolution, processingTime);
+                
+                // Clean up
+                await ffmpeg.deleteFile(inputFileName);
+                await ffmpeg.deleteFile(outputFileName);
+
+                progressText.textContent = `✅ Complete! Processed in ${processingTime.toFixed(1)}s with ${currentThreadCount} threads`;
+                progressFill.style.width = '100%';
+
+            } catch (error) {
+                console.error('Processing error:', error);
+                showError(`Processing failed: ${error.message}`);
+                progressText.textContent = '❌ Processing failed';
+            } finally {
+                processBtn.disabled = false;
+                processBtn.innerHTML = '⚡ Maximum Speed Process';
             }
         }
 
-        // Initialize optimizations on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            optimizeForHardware();
+        // Display processing results
+        function displayResults(inputFile, outputBlob, outputUrl, targetResolution, processingTime) {
+            const inputSize = (inputFile.size / (1024 * 1024)).toFixed(1);
+            const outputSize = (outputBlob.size / (1024 * 1024)).toFixed(1);
+            const compressionRatio = ((1 - outputBlob.size / inputFile.size) * 100).toFixed(1);
             
-            // Warm up FFmpeg in background for faster first use
-            setTimeout(async () => {
-                if (!ffmpeg) {
-                    console.log('Pre-loading FFmpeg for faster first use...');
-                    await initFFmpeg();
-                }
-            }, 2000);
+            videoPreview.innerHTML = `
+                <div class="video-container">
+                    <h3>📹 Original Video</h3>
+                    <video controls>
+                        <source src="${URL.createObjectURL(inputFile)}" type="video/mp4">
+                    </video>
+                    <div class="video-info">
+                        <div><strong>Resolution:</strong> ${videoMetadata.width}x${videoMetadata.height}</div>
+                        <div><strong>File Size:</strong> ${inputSize} MB</div>
+                        <div><strong>Duration:</strong> ${formatTime(videoMetadata.duration)}</div>
+                    </div>
+                </div>
+                
+                <div class="video-container">
+                    <h3>🚀 Resized Video</h3>
+                    <video controls>
+                        <source src="${outputUrl}" type="video/mp4">
+                    </video>
+                    <div class="video-info">
+                        <div><strong>Resolution:</strong> ${targetResolution.width}x${targetResolution.height}</div>
+                        <div><strong>File Size:</strong> ${outputSize} MB</div>
+                        <div><strong>Processing Time:</strong> ${processingTime.toFixed(1)}s</div>
+                        <div><strong>Threads Used:</strong> ${currentThreadCount}</div>
+                        <div><strong>Speed Mode:</strong> ${currentSpeedMode}</div>
+                        <div><strong>Size Change:</strong> ${compressionRatio > 0 ? '+' : ''}${compressionRatio}%</div>
+                    </div>
+                    <a href="${outputUrl}" download="resized_video.mp4" class="download-btn">
+                        💾 Download Resized Video
+                    </a>
+                </div>
+            `;
+        }
+
+        // Helper function to convert file to array buffer
+        async function fetchFile(file) {
+            return new Uint8Array(await file.arrayBuffer());
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCPUInfo();
+            initFFmpeg();
         });
 
-        console.log('⚡ Ultra-fast video upscaler initialized with performance optimizations!');
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (!processBtn.disabled) {
+                    processVideo();
+                }
+            }
+        });
+
+        // Drag and drop functionality
+        const uploadSection = document.querySelector('.upload-section');
+        
+        uploadSection.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#ff6b6b';
+            this.style.background = 'linear-gradient(135deg, #4a4a4a 0%, #5a5a5a 100%)';
+        });
+
+        uploadSection.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#555';
+            this.style.background = 'linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%)';
+        });
+
+        uploadSection.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#555';
+            this.style.background = 'linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%)';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                inputFile = files[0];
+                document.getElementById('fileName').textContent = `Selected: ${files[0].name}`;
+                processBtn.disabled = !isFFmpegReady;
+                getVideoMetadata(files[0]);
+            }
+        });
+
+        // Performance monitoring
+        function updatePerformanceStats() {
+            if (startTime) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                // Additional performance metrics can be added here
+            }
+        }
+
+        // Update performance stats every second during processing
+        setInterval(updatePerformanceStats, 1000);
+
+        // Memory usage monitoring
+        function checkMemoryUsage() {
+            if (performance.memory) {
+                const memoryInfo = performance.memory;
+                const usedMB = Math.round(memoryInfo.usedJSHeapSize / 1024 / 1024);
+                const totalMB = Math.round(memoryInfo.totalJSHeapSize / 1024 / 1024);
+                
+                console.log(`Memory usage: ${usedMB}MB / ${totalMB}MB`);
+            }
+        }
+
+        // Check memory usage every 5 seconds
+        setInterval(checkMemoryUsage, 5000);
+
+        // Cleanup function for memory management
+        function cleanup() {
+            if (videoPreview.innerHTML) {
+                const videos = videoPreview.querySelectorAll('video');
+                videos.forEach(video => {
+                    if (video.src) {
+                        URL.revokeObjectURL(video.src);
+                    }
+                });
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanup);
+
+        // Auto-hide logs after successful processing
+        function autoHideLogs() {
+            setTimeout(() => {
+                if (logsContainer.style.display === 'block' && !logsContainer.textContent.includes('error')) {
+                    logsContainer.style.display = 'none';
+                }
+            }, 10000);
+        }
+
+        // Show processing tips
+        function showProcessingTips() {
+            console.log('💡 Processing Tips:');
+            console.log('• Ultra Fast mode uses nearest neighbor scaling for maximum speed');
+            console.log('• Use maximum threads for best performance on multi-core systems');
+            console.log('• 4K/8K processing requires sufficient RAM (8GB+ recommended)');
+            console.log('• For best quality, use Quality mode with slower processing');
+        }
+
+        // Initialize tips
+        setTimeout(showProcessingTips, 3000);
     </script>
 </body>
 </html>
