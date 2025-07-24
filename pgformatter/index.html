@@ -326,13 +326,11 @@
         if (parts.length >= 5) {
             const contentParts = parts.slice(2, parts.length - 2);
             text = contentParts.join(delimiter).trim();
-            console.log(`[${fileName}] Delimiter logic applied.`);
+            console.log(`[${fileName}] Delimiter logic applied - found ${parts.length - 1} "***" delimiters.`);
         } else if (text.includes(delimiter)) {
-            processingError = `Error: Found ${parts.length - 1} instance(s) of "${delimiter}" in ${fileName}. At least 4 are required. Skipping further processing for this file.`;
-            console.warn(`[${fileName}] ${processingError}`);
-            return { content: null, error: processingError }; // Return error
+            console.log(`[${fileName}] Found ${parts.length - 1} instance(s) of "${delimiter}" (fewer than 4 required). Skipping delimiter processing but continuing with other text processing.`);
         } else {
-            console.log(`[${fileName}] No "***" delimiters found. Proceeding with original text.`);
+            console.log(`[${fileName}] No "***" delimiters found. Proceeding with text processing.`);
         }
 
         if (text === "" && !processingError) {
