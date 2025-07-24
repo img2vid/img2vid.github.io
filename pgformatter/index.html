@@ -278,74 +278,6 @@
             /(?:^|\n)\s*(CHAPTER\s{2,}I)(?:\s|$|[:.!?])/igm
         ];
         
-        // Function to check if a Chapter 1 instance appears to be in a table of contents
-        function isLikelyTOCEntry(text, matchIndex, matchLength) {
-            // Get the line containing the match and surrounding context
-            const beforeMatch = text.substring(0, matchIndex);
-            const afterMatch = text.substring(matchIndex + matchLength);
-            
-            // Find the start and end of the current line
-            const lineStart = beforeMatch.lastIndexOf('\n') + 1;
-            const lineEnd = afterMatch.indexOf('\n');
-            const fullLine = text.substring(lineStart, matchIndex + matchLength + (lineEnd === -1 ? 0 : lineEnd));
-            
-            // Get some context around the match (previous and next few lines)
-            const contextBefore = beforeMatch.split('\n').slice(-3).join('\n');
-            const contextAfter = afterMatch.split('\n').slice(0, 3).join('\n');
-            const context = contextBefore + '\n' + fullLine + '\n' + contextAfter;
-            
-            // TOC indicators - check if the context contains these patterns
-            const tocIndicators = [
-                // Common TOC headers
-                /table\s+of\s+contents/i,
-                /contents/i,
-                /index/i,
-                
-                // Multiple chapter listings in close proximity
-                /chapter\s+\d+.*chapter\s+\d+/i,
-                /chapter\s+[ivx]+.*chapter\s+[ivx]+/i,
-                
-                // Page number patterns (typical in TOC)
-                /\.\s*\d+\s*$/m,  // dots followed by page numbers
-                /\s+\d+\s*$/m,    // trailing page numbers
-                /\d+\s*$/m,       // ending with numbers
-                
-                // Dots or dashes leading to page numbers (TOC formatting)
-                /\.{2,}\s*\d+/,
-                /-{2,}\s*\d+/,
-                
-                // Multiple chapters listed with minimal text between them
-                /chapter\s+\d+\s*[^\n]{0,50}\s*chapter\s+\d+/i,
-            ];
-            
-            // Check for TOC indicators
-            for (const indicator of tocIndicators) {
-                if (indicator.test(context)) {
-                    return true;
-                }
-            }
-            
-            // Check if the line is very short (typical of TOC entries)
-            const trimmedLine = fullLine.trim();
-            if (trimmedLine.length < 50 && /\d+\s*$/.test(trimmedLine)) {
-                return true;
-            }
-            
-            // Check if there are multiple "Chapter X" entries in nearby lines
-            const nearbyLines = context.split('\n');
-            let chapterCount = 0;
-            for (const line of nearbyLines) {
-                if (/chapter\s+\d+/i.test(line) || /chapter\s+[ivx]+/i.test(line)) {
-                    chapterCount++;
-                }
-            }
-            if (chapterCount >= 3) {
-                return true;
-            }
-            
-            return false;
-        }
-        
         // Find all Chapter 1 matches across all patterns
         let allMatches = [];
         
@@ -362,33 +294,30 @@
             }
         }
         
-        // Sort matches by position
-        allMatches.sort((a, b) => a.index - b.index);
-        
-        // Find the first Chapter 1 that is NOT in a TOC
-        for (const match of allMatches) {
-            if (!isLikelyTOCEntry(text, match.index, match.length)) {
-                // Find the start of the line containing this Chapter 1
-                const beforeChapter1 = text.substring(0, match.index);
-                const lastNewlineBeforeChapter1 = beforeChapter1.lastIndexOf('\n');
-                const startOfChapter1Line = lastNewlineBeforeChapter1 === -1 ? 0 : lastNewlineBeforeChapter1 + 1;
-                
-                // Remove everything before the Chapter 1 line
-                const result = text.substring(startOfChapter1Line);
-                console.log(`[${fileName}] Found actual "${match.matchedText}" (skipped ${allMatches.indexOf(match)} TOC entries) - removed ${startOfChapter1Line} characters before it.`);
-                return result;
-            } else {
-                console.log(`[${fileName}] Skipping "${match.matchedText}" at position ${match.index} - appears to be in table of contents.`);
-            }
-        }
-        
-        // If no valid Chapter 1 found (all were TOC entries or none found)
-        if (allMatches.length > 0) {
-            console.log(`[${fileName}] Found ${allMatches.length} Chapter 1 instance(s) but all appear to be in table of contents. Processing entire text.`);
-        } else {
+        if (allMatches.length === 0) {
             console.log(`[${fileName}] No Chapter 1 variation found. Processing entire text.`);
+            return text;
         }
-        return text;
+        
+        // Sort matches by position and take the LAST one
+        allMatches.sort((a, b) => a.index - b.index);
+        const lastMatch = allMatches[allMatches.length - 1];
+        
+        // Find the start of the line containing the last Chapter 1
+        const beforeChapter1 = text.substring(0, lastMatch.index);
+        const lastNewlineBeforeChapter1 = beforeChapter1.lastIndexOf('\n');
+        const startOfChapter1Line = lastNewlineBeforeChapter1 === -1 ? 0 : lastNewlineBeforeChapter1 + 1;
+        
+        // Remove everything before the Chapter 1 line
+        const result = text.substring(startOfChapter1Line);
+        
+        if (allMatches.length > 1) {
+            console.log(`[${fileName}] Found ${allMatches.length} Chapter 1 instances. Used the last occurrence: "${lastMatch.matchedText}" - removed ${startOfChapter1Line} characters before it.`);
+        } else {
+            console.log(`[${fileName}] Found "${lastMatch.matchedText}" - removed ${startOfChapter1Line} characters before it.`);
+        }
+        
+        return result;
     }
 
     // --- Text Processing Logic (Modified to include Chapter 1 removal) ---
