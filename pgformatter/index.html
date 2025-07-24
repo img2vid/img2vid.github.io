@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Intelligent Text Cleaner (Batch)</title>
-<script src="jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         /* (Keep your existing CSS styles here) */
         body {
@@ -137,7 +137,14 @@
         <ul>
             <li>Upload one or more plain text (.txt) files.</li>
             <li>Each file is processed individually based on the rules:</li>
-            <li><strong>If a file contains at least four `***` separators:</strong>
+            <li><strong>First, removes all text before "Chapter 1":</strong>
+                <ul>
+                    <li>Detects variations like "Chapter I", "CHAPTER 1", "Chapter One", etc.</li>
+                    <li>Accounts for different spacing and formatting.</li>
+                    <li>If no Chapter 1 is found, processes the entire text.</li>
+                </ul>
+            </li>
+            <li><strong>Then, if a file contains at least four `***` separators:</strong>
                 <ul>
                      <li>Removes all text before the first `***`.</li>
                      <li>Removes the text between the first and second `***` (including the delimiters).</li>
@@ -229,11 +236,89 @@
         return null; // Out of range or invalid
     }
 
-    // --- Text Processing Logic (Modified slightly for error return) ---
+    // --- Chapter 1 Detection and Removal Logic ---
+    function removeTextBeforeChapter1(text, fileName) {
+        console.log(`[${fileName}] Looking for Chapter 1 variations...`);
+        
+        // Comprehensive regex to match various Chapter 1 formats
+        const chapter1Patterns = [
+            // Standard formats with Arabic numerals
+            /(?:^|\n)\s*(Chapter\s+1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s+1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(chapter\s+1)(?:\s|$|[:.!?])/im,
+            
+            // Roman numeral I
+            /(?:^|\n)\s*(Chapter\s+I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s+I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(chapter\s+I)(?:\s|$|[:.!?])/im,
+            
+            // Written out "One"
+            /(?:^|\n)\s*(Chapter\s+One)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s+ONE)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(chapter\s+one)(?:\s|$|[:.!?])/im,
+            
+            // With various separators and spacing
+            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*One)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*ONE)(?:\s|$|[:.!?])/im,
+            
+            // Abbreviated forms
+            /(?:^|\n)\s*(Ch\.?\s+1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CH\.?\s+1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(Ch\.?\s+I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CH\.?\s+I)(?:\s|$|[:.!?])/im,
+            
+            // With extra whitespace variations
+            /(?:^|\n)\s*(Chapter\s{2,}1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s{2,}1)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(Chapter\s{2,}I)(?:\s|$|[:.!?])/im,
+            /(?:^|\n)\s*(CHAPTER\s{2,}I)(?:\s|$|[:.!?])/im
+        ];
+        
+        let chapter1Found = false;
+        let chapter1Position = -1;
+        let matchedPattern = '';
+        
+        // Try each pattern to find the first occurrence of Chapter 1
+        for (const pattern of chapter1Patterns) {
+            const match = text.match(pattern);
+            if (match) {
+                const currentPosition = match.index;
+                if (!chapter1Found || currentPosition < chapter1Position) {
+                    chapter1Found = true;
+                    chapter1Position = currentPosition;
+                    matchedPattern = match[1];
+                }
+            }
+        }
+        
+        if (chapter1Found) {
+            // Find the start of the line containing Chapter 1
+            const beforeChapter1 = text.substring(0, chapter1Position);
+            const lastNewlineBeforeChapter1 = beforeChapter1.lastIndexOf('\n');
+            const startOfChapter1Line = lastNewlineBeforeChapter1 === -1 ? 0 : lastNewlineBeforeChapter1 + 1;
+            
+            // Remove everything before the Chapter 1 line
+            const result = text.substring(startOfChapter1Line);
+            console.log(`[${fileName}] Found "${matchedPattern}" - removed ${startOfChapter1Line} characters before it.`);
+            return result;
+        } else {
+            console.log(`[${fileName}] No Chapter 1 variation found. Processing entire text.`);
+            return text;
+        }
+    }
+
+    // --- Text Processing Logic (Modified to include Chapter 1 removal) ---
     function processText(text, fileName) {
         // Returns { content: string | null, error: string | null }
         console.log(`Starting processing for: ${fileName}`);
         let processingError = null; // Track errors specifically for this file
+
+        // --- NEW: Chapter 1 Detection and Removal ---
+        text = removeTextBeforeChapter1(text, fileName);
 
         // --- *** Delimiter Processing Logic *** ---
         const delimiter = '***';
