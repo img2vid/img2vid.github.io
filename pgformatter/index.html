@@ -9,7 +9,7 @@
     <style>
         /* (Keep your existing CSS styles here) */
         body {
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             padding: 20px;
             background-color: #f4f4f4;
@@ -23,8 +23,8 @@
             background-color: #fff;
             padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 80%;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 90%;
             max-width: 900px;
             margin: auto;
         }
@@ -80,6 +80,7 @@
         button:disabled {
             background-color: #bdc3c7;
             cursor: not-allowed;
+            opacity: 0.7;
         }
 
         textarea#logArea { /* Changed ID and purpose */
@@ -147,16 +148,16 @@
                     <li>Keeps only the text between the second and second-to-last `***`.</li>
                 </ul>
              </li>
-             <li><strong>On the *remaining* text, it removes everything before the *last* instance of "Chapter 1" (or "Chapter I", "chapter one", etc.).</strong></li>
-            <li><strong>On the *final remaining* text of each file:</strong></li>
-            <ul>
+             <li><strong>On the *remaining* text of each file:</strong></li>
+             <ul>
+                <li>Removes all text before the *actual* "Chapter 1", intelligently skipping over any table of contents.</li>
                 <li>Removes most line breaks, preserving paragraphs.</li>
                 <li>Intelligently identifies chapter/part/section headings.</li>
                 <li>Ensures one blank line before and after identified headings.</li>
                 <li>Converts Roman numerals to Arabic numerals ONLY within detected headings.</li>
                 <li>Removes all underscore (_) characters.</li>
                 <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
-            </ul>
+             </ul>
             <li>A log shows the processing status for each file.</li>
             <li>Click 'Download Cleaned Files (ZIP)' to get a zip archive containing all successfully processed files.</li>
         </ul>
@@ -187,6 +188,7 @@
     function romanToArabic(roman) {
         if (!roman || typeof roman !== 'string') return null;
         roman = roman.toUpperCase().trim();
+        // This regex ensures the entire string is a valid sequence of Roman numeral characters.
         if (!/^\b[IVXLCDM]+\b$/i.test(roman)) return null;
 
         const romanMap = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
@@ -196,7 +198,7 @@
 
         for (let i = tempRoman.length - 1; i >= 0; i--) {
             const currentValue = romanMap[tempRoman[i]];
-            if (currentValue === undefined) return null;
+            if (currentValue === undefined) return null; // Should not happen due to regex, but safe
             if (currentValue < prevValue) {
                 result -= currentValue;
             } else {
@@ -205,6 +207,7 @@
             prevValue = currentValue;
         }
 
+        // A simple function to convert an Arabic number back to Roman for validation
         function arabicToRomanSimpleCheck(num) {
              if (num <= 0 || num >= 4000) return '';
              const val = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
@@ -219,6 +222,7 @@
              return roman;
          }
 
+        // Validate the conversion by converting back. This catches invalid sequences like "IIX" or "VV".
         if (result > 0 && result < 4000) {
             if (arabicToRomanSimpleCheck(result) === tempRoman) {
                 return result;
@@ -230,11 +234,11 @@
         return null; // Out of range or invalid
     }
 
-    // --- Text Processing Logic (MODIFIED) ---
+    // --- Text Processing Logic ---
     function processText(text, fileName) {
         // Returns { content: string | null, error: string | null }
         console.log(`Starting processing for: ${fileName}`);
-        let processingError = null; // Track errors specifically for this file
+        let processingError = null;
 
         // --- *** Delimiter Processing Logic *** ---
         const delimiter = '***';
@@ -251,30 +255,53 @@
             console.log(`[${fileName}] No "***" delimiters found. Proceeding with original text.`);
         }
 
-        if (text === "" && !processingError) {
-            console.log(`[${fileName}] Result is empty after delimiter processing (or no delimiters found and text was empty).`);
-            // Don't treat this as an error, just return empty content
-             return { content: "", error: null };
-        }
-        
-        // --- NEW: Remove everything before the LAST "Chapter 1" variation ---
-        // This regex looks for "chapter" (case-insensitive) followed by a space,
-        // and then "1", "I", or "one" (case-insensitive) as whole words.
-        const chapterOneRegex = /\b(chapter)\s+(1|I|one)\b/gi;
-        let lastMatchIndex = -1;
-        let match;
+        // --- NEW: Chapter 1 Start-of-Content Detection ---
+        // This logic finds the *actual* start of the content (e.g., Chapter 1)
+        // and removes any preceding text like a table of contents.
+        const linesForChapterSearch = text.split('\n');
+        let chapterStartIndex = -1;
 
-        // Loop through all matches to find the last one's index
-        while ((match = chapterOneRegex.exec(text)) !== null) {
-            lastMatchIndex = match.index;
+        // Regex to find variations of "Chapter 1". Case-insensitive, handles different spellings/numerals.
+        const chapterOneRegex = /^(?:chapter|chap\.?|ch\.?|book|part|section)\s+(?:1|I|one)\b/i;
+        // Regex to identify any potential chapter heading, to filter out tables of contents.
+        const chapterAnyRegex = /^(?:chapter|chap\.?|ch\.?|book|part|section)\s+(?:\d+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i;
+        // A line is considered "content" if it has at least this many words.
+        const minWordsForSentence = 5;
+
+        for (let i = 0; i < linesForChapterSearch.length; i++) {
+            const currentLine = linesForChapterSearch[i].trim();
+
+            if (chapterOneRegex.test(currentLine)) {
+                // Found a potential "Chapter 1". Now we must validate it's the *real* one.
+                const nextLine1 = (i + 1 < linesForChapterSearch.length) ? linesForChapterSearch[i + 1].trim() : "";
+                const nextLine2 = (i + 2 < linesForChapterSearch.length) ? linesForChapterSearch[i + 2].trim() : "";
+
+                // Check if the next lines look like real content (i.e., not empty and not another chapter heading).
+                const isNextLine1Content = nextLine1 !== '' && !chapterAnyRegex.test(nextLine1) && nextLine1.split(/\s+/).length >= minWordsForSentence;
+                const isNextLine2Content = nextLine2 !== '' && !chapterAnyRegex.test(nextLine2) && nextLine2.split(/\s+/).length >= minWordsForSentence;
+
+                if (isNextLine1Content || isNextLine2Content) {
+                    // This is the first "Chapter 1" that is followed by actual content.
+                    chapterStartIndex = i;
+                    console.log(`[${fileName}] Found valid start-of-content marker at line ${i}: "${currentLine}"`);
+                    break; // Stop searching, we've found our starting point.
+                } else {
+                    console.log(`[${fileName}] Skipping potential TOC entry at line ${i}: "${currentLine}"`);
+                }
+            }
         }
 
-        if (lastMatchIndex !== -1) {
-            console.log(`[${fileName}] Found last "Chapter 1" variant at index ${lastMatchIndex}. Removing all preceding text.`);
-            // Keep the text from the beginning of the last match onwards
-            text = text.substring(lastMatchIndex);
+        if (chapterStartIndex !== -1) {
+            // If a valid start was found, slice the text from that line onwards.
+            text = linesForChapterSearch.slice(chapterStartIndex).join('\n');
+            console.log(`[${fileName}] Removed all text before the start-of-content marker.`);
         } else {
-            console.log(`[${fileName}] No "Chapter 1" variant found to act as a starting point. Keeping text as is.`);
+            console.log(`[${fileName}] No valid start-of-content marker found. Processing the entire text (or what remained after delimiter processing).`);
+        }
+
+        if (text === "" && !processingError) {
+            console.log(`[${fileName}] Result is empty after delimiter/chapter processing.`);
+            return { content: "", error: null };
         }
 
 
@@ -286,7 +313,6 @@
 
         // --- Stage 1: Identify Headings ---
         for (let i = 0; i < numLines; i++) {
-            // ... (Keep your existing heading detection logic exactly as it was) ...
             let line = lines[i];
             let trimmedLine = line.trim();
             let isHeading = false;
@@ -298,8 +324,8 @@
                 continue;
             }
 
-            // Heuristics... (explicit, roman word start, implicit)
-             // 1. Explicit Keywords + Numerals
+            // Heuristics for heading detection...
+            // 1. Explicit Keywords + Numerals (e.g., "Chapter 1", "Part IV")
             const explicitHeadingRegex = /^(Chapter|Part|Section|Book)\s+(\b[IVXLCDM]+\b|\d+)\s*[:.]?(?:\s+.*)?$/i;
             let match = trimmedLine.match(explicitHeadingRegex);
             if (match) {
@@ -318,7 +344,6 @@
                         } else {
                              processedLine = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} ${arabic}`;
                         }
-                        // console.log(`[${fileName}] Converted Explicit Roman: "${trimmedLine}" -> "${processedLine}"`);
                     } else {
                         processedLine = trimmedLine;
                         console.warn(`[${fileName}] Invalid Roman numeral "${numeralStr}" found in explicit heading: "${trimmedLine}"`);
@@ -328,7 +353,7 @@
                 }
             }
 
-             // 2. Roman Numeral Word at Start
+            // 2. Roman Numeral Word at Start (e.g., "I", "II.")
             if (!isHeading) {
                 const romanWordStartRegex = /^\b([IVXLCDM]+)\b([:.\s].*)?$/i;
                 match = trimmedLine.match(romanWordStartRegex);
@@ -337,26 +362,23 @@
                     const restOfLine = (match[2] || '').trim();
                     let proceedWithConversion = false;
 
+                    // Special handling for "I" to avoid converting the pronoun
                     if (potentialRoman.toUpperCase() === 'I') {
                         const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                         const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
                         if (restOfLine === '' && prevLineEmpty && nextLineEmpty) {
-                            proceedWithConversion = true;
-                            // console.log(`[${fileName}] Treating standalone 'I' between blanks as heading: "${trimmedLine}"`);
+                            proceedWithConversion = true; // Standalone "I" between blank lines is likely a heading
                         } else {
                             const firstWordAfterI = restOfLine.split(/\s+/)[0] || '';
                             const commonVerbs = /\b(am|was|will|have|had|do|did|go|went|see|saw|think|like|know|can|could|would|feel|want|is|m|ve|d|ll)\b/i;
                             if (/^[a-z]/.test(restOfLine) || commonVerbs.test(firstWordAfterI)) {
-                                proceedWithConversion = false;
-                                // console.log(`[${fileName}] Skipping 'I' conversion (looks like pronoun): "${trimmedLine}"`);
+                                proceedWithConversion = false; // Looks like a sentence
                             } else {
                                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase() && /[A-Z]/.test(trimmedLine);
                                 if (isAllCaps || (prevLineEmpty && nextLineEmpty)){
-                                    proceedWithConversion = true;
-                                    // console.log(`[${fileName}] Treating contextual 'I' as heading: "${trimmedLine}"`);
+                                    proceedWithConversion = true; // All caps or surrounded by blanks
                                 } else {
                                      proceedWithConversion = false;
-                                    // console.log(`[${fileName}] Skipping ambiguous 'I' conversion (weak formatting): "${trimmedLine}"`);
                                 }
                             }
                         }
@@ -369,11 +391,9 @@
                             if(romanToArabic(potentialRoman) !== null) {
                                 proceedWithConversion = true;
                             } else {
-                                // console.log(`[${fileName}] Skipping conversion (invalid Roman sequence or word?): "${potentialRoman}" in line "${trimmedLine}"`);
                                 proceedWithConversion = false;
                             }
                         } else {
-                            // console.log(`[${fileName}] Skipping potential Roman conversion (weak formatting): "${trimmedLine}"`);
                             proceedWithConversion = false;
                         }
                     }
@@ -393,7 +413,6 @@
                                 actualRest = actualRest.replace(/^[:.\s]+/, '');
                             }
                             processedLine = `${arabic}${separator}${actualRest}`;
-                            // console.log(`[${fileName}] Converted Contextual Roman: "${trimmedLine}" -> "${processedLine}"`);
                         } else {
                             processedLine = trimmedLine;
                             console.warn(`[${fileName}] Contextual Roman conversion failed unexpectedly for "${potentialRoman}" in: "${trimmedLine}"`);
@@ -404,23 +423,20 @@
                 }
             }
 
-             // 3. Implicit Heading Detection (ALL CAPS line alone)
+            // 3. Implicit Heading Detection (ALL CAPS line alone)
             if (!isHeading) {
                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase()
-                                && trimmedLine.length > 1
-                                && /[A-Z]/.test(trimmedLine)
-                                && !/^\d+$/.test(trimmedLine);
+                                  && trimmedLine.length > 1
+                                  && /[A-Z]/.test(trimmedLine)
+                                  && !/^\d+$/.test(trimmedLine);
                 const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                 const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
 
                 if (isAllCaps && ((prevLineEmpty && nextLineEmpty) || (i === 0 && nextLineEmpty) || (i === numLines - 1 && prevLineEmpty))) {
                     const romanWordRegex = /^\b[IVXLCDM]+\b$/i;
-                    if (!romanWordRegex.test(trimmedLine)) {
+                    if (!romanWordRegex.test(trimmedLine)) { // Avoid marking "IV" as a heading here, as it's handled above
                         isHeading = true;
                         processedLine = trimmedLine;
-                        // console.log(`[${fileName}] Identified Implicit Heading (ALL CAPS): "${trimmedLine}"`);
-                    } else {
-                        // console.log(`[${fileName}] Skipping ALL CAPS heading mark for potential Roman word: "${trimmedLine}"`);
                     }
                 }
             }
@@ -460,7 +476,7 @@
                     if (!pendingBlankLine && result !== '' && !previousItemWasHeading) {
                          result += '\n\n';
                     } else if (pendingBlankLine && result !== '') {
-                        result += '\n';
+                         result += '\n';
                     }
                     currentParagraph = item.processed;
                 } else {
@@ -491,13 +507,13 @@
         }
 
         // --- Final Cleanup Steps ---
-        result = result.replace(/\n{3,}/g, '\n\n');
-        result = result.replace(/\[.*?\]/g, ''); // Non-greedy bracket removal
-        result = result.replace(/_/g, '');       // Remove all underscores
-        result = result.replace(/ {2,}/g, ' ');  // Collapse multiple spaces
-        result = result.replace(/ \n/g, '\n');   // Remove space before newline
-        result = result.replace(/\n /g, '\n');   // Remove space after newline
-        result = result.trim();                  // Final trim
+        result = result.replace(/\n{3,}/g, '\n\n'); // Collapse excess blank lines
+        result = result.replace(/\[.*?\]/g, '');     // Non-greedy bracket removal
+        result = result.replace(/_/g, '');           // Remove all underscores
+        result = result.replace(/ {2,}/g, ' ');      // Collapse multiple spaces
+        result = result.replace(/ \n/g, '\n');       // Remove space before newline
+        result = result.replace(/\n /g, '\n');       // Remove space after newline
+        result = result.trim();                      // Final trim
 
         console.log(`[${fileName}] Processing complete.`);
         return { content: result, error: null }; // Success
@@ -522,9 +538,9 @@
         logArea.value = `Selected ${files.length} file(s). Starting processing...\n-------------------------------------------\n`;
         errorDiv.textContent = '';
         statusDiv.textContent = 'Processing...';
-        downloadButton.disabled = true; // Disable until processing is done
+        downloadButton.disabled = true;
 
-        const processingPromises = []; // Store promises for each file reader
+        const processingPromises = [];
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -542,7 +558,7 @@
                     content: null,
                     error: 'Invalid file type'
                 });
-                continue; // Skip this file, don't create a promise
+                continue;
             }
 
             // Create a promise for reading and processing each file
@@ -564,14 +580,14 @@
                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: null, error: result.error });
                             } else if (result.content === null || result.content.trim() === '') {
                                  logArea.value += `[${currentFileNumber}/${totalFiles}] Processed ${file.name} - Result is empty.\n`;
-                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: '', error: null }); // Store empty content
+                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: '', error: null });
                             }
-                             else {
+                            else {
                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Successfully processed: ${file.name}\n`;
                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: result.content, error: null });
                             }
                             resolve(); // Resolve the promise for this file
-                        }, 10); // Small delay
+                        }, 10);
 
                     } catch (err) {
                         console.error(`Error during processing of ${file.name}:`, err);
@@ -582,7 +598,7 @@
                             cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_error.txt",
                             content: null,
                             error: errorMsg });
-                        resolve(); // Still resolve, but with error noted
+                        resolve();
                     }
                 };
 
@@ -595,7 +611,7 @@
                         cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_read_error.txt",
                         content: null,
                         error: errorMsg });
-                    resolve(); // Resolve even on read error
+                    resolve();
                 };
 
                 reader.readAsText(file);
@@ -618,13 +634,13 @@
             } else if (pf.content !== null && pf.content.trim() !== '') {
                 successCount++;
             } else {
-                emptyCount++; // Count files that processed without error but resulted in empty content
+                emptyCount++;
             }
         });
 
         statusDiv.textContent = `Processing complete. ${successCount} file(s) processed successfully. ${emptyCount} resulted in empty content. ${errorCount} file(s) had errors.`;
 
-        if (successCount > 0 || emptyCount > 0) { // Enable download if at least one file has non-null content (even if empty string)
+        if (successCount > 0 || emptyCount > 0) {
             downloadButton.disabled = false;
              logArea.value += `\nReady to download ${successCount + emptyCount} cleaned file(s) in a ZIP archive.`;
         } else {
@@ -641,54 +657,47 @@
             return;
         }
 
-        const filesToZip = processedFiles.filter(pf => pf.content !== null); // Only zip files with non-null content (includes empty strings)
+        const filesToZip = processedFiles.filter(pf => pf.content !== null);
 
         if (filesToZip.length === 0) {
-             errorDiv.textContent = "No files available to download (all resulted in errors or were skipped).";
-             return;
+              errorDiv.textContent = "No files available to download (all resulted in errors or were skipped).";
+              return;
         }
 
 
         statusDiv.textContent = 'Creating ZIP file...';
         logArea.value += '\nCreating ZIP file...';
-        downloadButton.disabled = true; // Prevent double-clicks
-        errorDiv.textContent = ''; // Clear previous download errors
+        downloadButton.disabled = true;
+        errorDiv.textContent = '';
 
         try {
             const zip = new JSZip();
 
             filesToZip.forEach(fileData => {
-                // Add file to zip. Use cleanedName. Content can be empty string.
-                zip.file(fileData.cleanedName, fileData.content || ""); // Use empty string if content is null/undefined somehow, though filter should prevent null
+                zip.file(fileData.cleanedName, fileData.content || "");
             });
 
-            // Generate the ZIP file as a blob
             zip.generateAsync({ type: "blob" })
                 .then(function (blob) {
-                    // Create a link element to trigger the download
                     const link = document.createElement('a');
                     const url = URL.createObjectURL(blob);
                     link.href = url;
-                    link.download = 'cleaned_files.zip'; // Name of the downloaded zip file
-                    document.body.appendChild(link); // Required for Firefox
+                    link.download = 'cleaned_files.zip';
+                    document.body.appendChild(link);
                     link.click();
 
-                    // Clean up
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
 
                     statusDiv.textContent = 'ZIP file download initiated.';
                     logArea.value += '\nZIP file download initiated.';
-                    // Keep button disabled? Or re-enable? Maybe keep disabled until new files are uploaded.
-                    // downloadButton.disabled = false; // Re-enable if desired
-
                 })
                 .catch(function (err) {
                     console.error("ZIP Generation/Download error:", err);
                     errorDiv.textContent = `Failed to create or download ZIP file: ${err.message}`;
                     statusDiv.textContent = 'ZIP creation failed.';
                     logArea.value += `\nError creating ZIP: ${err.message}`;
-                    downloadButton.disabled = false; // Re-enable button on error
+                    downloadButton.disabled = false;
                 });
 
         } catch (err) {
@@ -696,7 +705,7 @@
             errorDiv.textContent = `Failed to prepare files for zipping: ${err.message}`;
             statusDiv.textContent = 'ZIP creation failed.';
             logArea.value += `\nError preparing ZIP: ${err.message}`;
-            downloadButton.disabled = false; // Re-enable button on error
+            downloadButton.disabled = false;
         }
     });
 </script>
