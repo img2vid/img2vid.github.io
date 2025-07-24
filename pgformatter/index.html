@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Intelligent Text Cleaner (Batch)</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Using a CDN for JSZip for portability -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         /* (Keep your existing CSS styles here) */
         body {
@@ -137,31 +138,25 @@
         <ul>
             <li>Upload one or more plain text (.txt) files.</li>
             <li>Each file is processed individually based on the rules:</li>
-            <li><strong>First, removes all text before "Chapter 1":</strong>
+            <li><strong>If a file contains at least four `***` separators:</strong>
                 <ul>
-                    <li>Detects variations like "Chapter I", "CHAPTER 1", "Chapter One", etc.</li>
-                    <li>Accounts for different spacing and formatting.</li>
-                    <li>If no Chapter 1 is found, processes the entire text.</li>
+                    <li>Removes all text before the first `***`.</li>
+                    <li>Removes the text between the first and second `***` (including the delimiters).</li>
+                    <li>Removes all text after the last `***`.</li>
+                    <li>Removes the text between the second-to-last and the last `***` (including the delimiters).</li>
+                    <li>Keeps only the text between the second and second-to-last `***`.</li>
                 </ul>
-            </li>
-            <li><strong>Then, if a file contains at least four `***` separators:</strong>
-                <ul>
-                     <li>Removes all text before the first `***`.</li>
-                     <li>Removes the text between the first and second `***` (including the delimiters).</li>
-                     <li>Removes all text after the last `***`.</li>
-                     <li>Removes the text between the second-to-last and the last `***` (including the delimiters).</li>
-                     <li>Keeps only the text between the second and second-to-last `***`.</li>
-                 </ul>
              </li>
-             <li><strong>On the *remaining* text of each file:</strong></li>
-             <ul>
-                 <li>Removes most line breaks, preserving paragraphs.</li>
-                 <li>Intelligently identifies chapter/part/section headings.</li>
-                 <li>Ensures one blank line before and after identified headings.</li>
-                 <li>Converts Roman numerals to Arabic numerals ONLY within detected headings.</li>
-                 <li>Removes all underscore (_) characters.</li>
-                 <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
-             </ul>
+             <li><strong>On the *remaining* text, it removes everything before the *last* instance of "Chapter 1" (or "Chapter I", "chapter one", etc.).</strong></li>
+            <li><strong>On the *final remaining* text of each file:</strong></li>
+            <ul>
+                <li>Removes most line breaks, preserving paragraphs.</li>
+                <li>Intelligently identifies chapter/part/section headings.</li>
+                <li>Ensures one blank line before and after identified headings.</li>
+                <li>Converts Roman numerals to Arabic numerals ONLY within detected headings.</li>
+                <li>Removes all underscore (_) characters.</li>
+                <li>Removes all text enclosed in square brackets (e.g., "[Editor's note]").</li>
+            </ul>
             <li>A log shows the processing status for each file.</li>
             <li>Click 'Download Cleaned Files (ZIP)' to get a zip archive containing all successfully processed files.</li>
         </ul>
@@ -180,7 +175,7 @@
 
 <script>
     const fileInput = document.getElementById('fileInput');
-    const logArea = document.getElementById('logArea'); // Changed from outputArea
+    const logArea = document.getElementById('logArea');
     const downloadButton = document.getElementById('downloadButton');
     const statusDiv = document.getElementById('status');
     const errorDiv = document.getElementById('error');
@@ -190,7 +185,6 @@
 
     // --- Roman to Arabic Conversion Logic (Unchanged) ---
     function romanToArabic(roman) {
-        // ... (Keep your existing romanToArabic function exactly as it was) ...
         if (!roman || typeof roman !== 'string') return null;
         roman = roman.toUpperCase().trim();
         if (!/^\b[IVXLCDM]+\b$/i.test(roman)) return null;
@@ -223,7 +217,7 @@
                  }
              }
              return roman;
-          }
+         }
 
         if (result > 0 && result < 4000) {
             if (arabicToRomanSimpleCheck(result) === tempRoman) {
@@ -236,98 +230,11 @@
         return null; // Out of range or invalid
     }
 
-    // --- Chapter 1 Detection and Removal Logic ---
-    function removeTextBeforeChapter1(text, fileName) {
-        console.log(`[${fileName}] Looking for Chapter 1 variations...`);
-        
-        // Comprehensive regex to match various Chapter 1 formats
-        const chapter1Patterns = [
-            // Standard formats with Arabic numerals
-            /(?:^|\n)\s*(Chapter\s+1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s+1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(chapter\s+1)(?:\s|$|[:.!?])/igm,
-            
-            // Roman numeral I
-            /(?:^|\n)\s*(Chapter\s+I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s+I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(chapter\s+I)(?:\s|$|[:.!?])/igm,
-            
-            // Written out "One"
-            /(?:^|\n)\s*(Chapter\s+One)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s+ONE)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(chapter\s+one)(?:\s|$|[:.!?])/igm,
-            
-            // With various separators and spacing
-            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(Chapter\s*[:\-\.\s]\s*One)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s*[:\-\.\s]\s*ONE)(?:\s|$|[:.!?])/igm,
-            
-            // Abbreviated forms
-            /(?:^|\n)\s*(Ch\.?\s+1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CH\.?\s+1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(Ch\.?\s+I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CH\.?\s+I)(?:\s|$|[:.!?])/igm,
-            
-            // With extra whitespace variations
-            /(?:^|\n)\s*(Chapter\s{2,}1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s{2,}1)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(Chapter\s{2,}I)(?:\s|$|[:.!?])/igm,
-            /(?:^|\n)\s*(CHAPTER\s{2,}I)(?:\s|$|[:.!?])/igm
-        ];
-        
-        // Find all Chapter 1 matches across all patterns
-        let allMatches = [];
-        
-        for (const pattern of chapter1Patterns) {
-            let match;
-            const regex = new RegExp(pattern.source, pattern.flags);
-            while ((match = regex.exec(text)) !== null) {
-                allMatches.push({
-                    index: match.index,
-                    length: match[0].length,
-                    matchedText: match[1],
-                    fullMatch: match[0]
-                });
-            }
-        }
-        
-        if (allMatches.length === 0) {
-            console.log(`[${fileName}] No Chapter 1 variation found. Processing entire text.`);
-            return text;
-        }
-        
-        // Sort matches by position and take the LAST one
-        allMatches.sort((a, b) => a.index - b.index);
-        const lastMatch = allMatches[allMatches.length - 1];
-        
-        // Find the start of the line containing the last Chapter 1
-        const beforeChapter1 = text.substring(0, lastMatch.index);
-        const lastNewlineBeforeChapter1 = beforeChapter1.lastIndexOf('\n');
-        const startOfChapter1Line = lastNewlineBeforeChapter1 === -1 ? 0 : lastNewlineBeforeChapter1 + 1;
-        
-        // Remove everything before the Chapter 1 line
-        const result = text.substring(startOfChapter1Line);
-        
-        if (allMatches.length > 1) {
-            console.log(`[${fileName}] Found ${allMatches.length} Chapter 1 instances. Used the last occurrence: "${lastMatch.matchedText}" - removed ${startOfChapter1Line} characters before it.`);
-        } else {
-            console.log(`[${fileName}] Found "${lastMatch.matchedText}" - removed ${startOfChapter1Line} characters before it.`);
-        }
-        
-        return result;
-    }
-
-    // --- Text Processing Logic (Modified to include Chapter 1 removal) ---
+    // --- Text Processing Logic (MODIFIED) ---
     function processText(text, fileName) {
         // Returns { content: string | null, error: string | null }
         console.log(`Starting processing for: ${fileName}`);
         let processingError = null; // Track errors specifically for this file
-
-        // --- NEW: Chapter 1 Detection and Removal ---
-        text = removeTextBeforeChapter1(text, fileName);
 
         // --- *** Delimiter Processing Logic *** ---
         const delimiter = '***';
@@ -335,17 +242,39 @@
         if (parts.length >= 5) {
             const contentParts = parts.slice(2, parts.length - 2);
             text = contentParts.join(delimiter).trim();
-            console.log(`[${fileName}] Delimiter logic applied - found ${parts.length - 1} "***" delimiters.`);
+            console.log(`[${fileName}] Delimiter logic applied.`);
         } else if (text.includes(delimiter)) {
-            console.log(`[${fileName}] Found ${parts.length - 1} instance(s) of "${delimiter}" (fewer than 4 required). Skipping delimiter processing but continuing with other text processing.`);
+            processingError = `Error: Found ${parts.length - 1} instance(s) of "${delimiter}" in ${fileName}. At least 4 are required. Skipping further processing for this file.`;
+            console.warn(`[${fileName}] ${processingError}`);
+            return { content: null, error: processingError }; // Return error
         } else {
-            console.log(`[${fileName}] No "***" delimiters found. Proceeding with text processing.`);
+            console.log(`[${fileName}] No "***" delimiters found. Proceeding with original text.`);
         }
 
         if (text === "" && !processingError) {
             console.log(`[${fileName}] Result is empty after delimiter processing (or no delimiters found and text was empty).`);
             // Don't treat this as an error, just return empty content
              return { content: "", error: null };
+        }
+        
+        // --- NEW: Remove everything before the LAST "Chapter 1" variation ---
+        // This regex looks for "chapter" (case-insensitive) followed by a space,
+        // and then "1", "I", or "one" (case-insensitive) as whole words.
+        const chapterOneRegex = /\b(chapter)\s+(1|I|one)\b/gi;
+        let lastMatchIndex = -1;
+        let match;
+
+        // Loop through all matches to find the last one's index
+        while ((match = chapterOneRegex.exec(text)) !== null) {
+            lastMatchIndex = match.index;
+        }
+
+        if (lastMatchIndex !== -1) {
+            console.log(`[${fileName}] Found last "Chapter 1" variant at index ${lastMatchIndex}. Removing all preceding text.`);
+            // Keep the text from the beginning of the last match onwards
+            text = text.substring(lastMatchIndex);
+        } else {
+            console.log(`[${fileName}] No "Chapter 1" variant found to act as a starting point. Keeping text as is.`);
         }
 
 
@@ -357,7 +286,7 @@
 
         // --- Stage 1: Identify Headings ---
         for (let i = 0; i < numLines; i++) {
-             // ... (Keep your existing heading detection logic exactly as it was) ...
+            // ... (Keep your existing heading detection logic exactly as it was) ...
             let line = lines[i];
             let trimmedLine = line.trim();
             let isHeading = false;
@@ -478,9 +407,9 @@
              // 3. Implicit Heading Detection (ALL CAPS line alone)
             if (!isHeading) {
                 const isAllCaps = trimmedLine === trimmedLine.toUpperCase()
-                                  && trimmedLine.length > 1
-                                  && /[A-Z]/.test(trimmedLine)
-                                  && !/^\d+$/.test(trimmedLine);
+                                && trimmedLine.length > 1
+                                && /[A-Z]/.test(trimmedLine)
+                                && !/^\d+$/.test(trimmedLine);
                 const prevLineEmpty = (i === 0 || lines[i - 1].trim() === '');
                 const nextLineEmpty = (i === numLines - 1 || lines[i + 1].trim() === '');
 
@@ -554,9 +483,9 @@
         // Add the last paragraph
         if (currentParagraph) {
              if (pendingBlankLine && result !== '') {
-                  result += '\n';
+                 result += '\n';
              } else if (!pendingBlankLine && result !== '' && !previousItemWasHeading) {
-                  result += '\n\n';
+                 result += '\n\n';
              }
             result += currentParagraph.trim();
         }
@@ -568,7 +497,7 @@
         result = result.replace(/ {2,}/g, ' ');  // Collapse multiple spaces
         result = result.replace(/ \n/g, '\n');   // Remove space before newline
         result = result.replace(/\n /g, '\n');   // Remove space after newline
-        result = result.trim();                 // Final trim
+        result = result.trim();                  // Final trim
 
         console.log(`[${fileName}] Processing complete.`);
         return { content: result, error: null }; // Success
@@ -627,21 +556,21 @@
 
                         // Run potentially long processing slightly async to allow UI updates
                         setTimeout(() => {
-                             const result = processText(text, file.name);
-                             const cleanedName = file.name.replace(/\.[^/.]+$/, "") + "_cleaned.txt";
+                            const result = processText(text, file.name);
+                            const cleanedName = file.name.replace(/\.[^/.]+$/, "") + "_cleaned.txt";
 
-                             if (result.error) {
-                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Error processing ${file.name}: ${result.error}\n`;
-                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: null, error: result.error });
-                             } else if (result.content === null || result.content.trim() === '') {
-                                  logArea.value += `[${currentFileNumber}/${totalFiles}] Processed ${file.name} - Result is empty.\n`;
-                                  processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: '', error: null }); // Store empty content
-                             }
-                              else {
-                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Successfully processed: ${file.name}\n`;
-                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: result.content, error: null });
-                             }
-                             resolve(); // Resolve the promise for this file
+                            if (result.error) {
+                                logArea.value += `[${currentFileNumber}/${totalFiles}] Error processing ${file.name}: ${result.error}\n`;
+                                processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: null, error: result.error });
+                            } else if (result.content === null || result.content.trim() === '') {
+                                 logArea.value += `[${currentFileNumber}/${totalFiles}] Processed ${file.name} - Result is empty.\n`;
+                                 processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: '', error: null }); // Store empty content
+                            }
+                             else {
+                                logArea.value += `[${currentFileNumber}/${totalFiles}] Successfully processed: ${file.name}\n`;
+                                processedFiles.push({ originalName: file.name, cleanedName: cleanedName, content: result.content, error: null });
+                            }
+                            resolve(); // Resolve the promise for this file
                         }, 10); // Small delay
 
                     } catch (err) {
@@ -649,10 +578,10 @@
                         const errorMsg = `An unexpected error occurred during processing: ${err.message}`;
                         logArea.value += `[${currentFileNumber}/${totalFiles}] Error processing ${file.name}: ${errorMsg}\n`;
                         processedFiles.push({
-                             originalName: file.name,
-                             cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_error.txt",
-                             content: null,
-                             error: errorMsg });
+                            originalName: file.name,
+                            cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_error.txt",
+                            content: null,
+                            error: errorMsg });
                         resolve(); // Still resolve, but with error noted
                     }
                 };
@@ -662,10 +591,10 @@
                     const errorMsg = 'Error reading the file.';
                     logArea.value += `[${currentFileNumber}/${totalFiles}] Error reading ${file.name}: ${errorMsg}\n`;
                     processedFiles.push({
-                         originalName: file.name,
-                         cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_read_error.txt",
-                         content: null,
-                         error: errorMsg });
+                        originalName: file.name,
+                        cleanedName: file.name.replace(/\.[^/.]+$/, "") + "_read_error.txt",
+                        content: null,
+                        error: errorMsg });
                     resolve(); // Resolve even on read error
                 };
 
@@ -689,7 +618,7 @@
             } else if (pf.content !== null && pf.content.trim() !== '') {
                 successCount++;
             } else {
-                 emptyCount++; // Count files that processed without error but resulted in empty content
+                emptyCount++; // Count files that processed without error but resulted in empty content
             }
         });
 
