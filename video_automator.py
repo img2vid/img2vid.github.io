@@ -285,9 +285,19 @@ def main():
     print("Please provide the path to the folder with your files.")
     
     try:
-        target_folder = input("Enter the path to your target folder: ").strip().strip('"\'')
-        
-        download_dir_input = input("Enter download directory (or press Enter for default 'Downloads' folder): ").strip().strip('"\'')
+        target_folder = (
+            input("Enter the path to your target folder: ")
+            .strip()
+            .strip('"')
+            .strip("'")
+        )
+
+        download_dir_input = (
+            input("Enter download directory (or press Enter for default 'Downloads' folder): ")
+            .strip()
+            .strip('"')
+            .strip("'")
+        )
         download_dir = download_dir_input if download_dir_input else None
 
         tool = AutomationTool(target_folder, download_dir)
