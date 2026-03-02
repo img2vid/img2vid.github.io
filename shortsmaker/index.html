@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reframe — 16:9 → 9:16 Converter</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── TOKENS ── */
+[data-theme="light"]{
+  --bg:#f4f3ef;--white:#ffffff;--surface:#eeede8;--surface2:#e8e7e0;
+  --border:#dddbd2;--border2:#c9c7bc;
+  --text:#1a1917;--muted:#8a8880;--dim:#b8b6b0;
+  --ink:#1a1917;--red:#d93535;--green:#1a7a40;--blue:#1952d3;--amber:#b06a00;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06);
+  --shadow-lg:0 2px 8px rgba(0,0,0,.10),0 20px 60px rgba(0,0,0,.14);
+  --phone-body:#1c1b18;--phone-screen:#111;
+}
+[data-theme="dark"]{
+  --bg:#141412;--white:#1e1d1a;--surface:#252420;--surface2:#2d2c28;
+  --border:#333230;--border2:#484640;
+  --text:#f0ede8;--muted:#7a7872;--dim:#4a4845;
+  --ink:#f0ede8;--red:#e85555;--green:#3aaa62;--blue:#5b82f5;--amber:#e8a030;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.3);
+  --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 20px 60px rgba(0,0,0,.5);
+  --phone-body:#0d0d0b;--phone-screen:#000;
+}
+
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;transition:background .2s,color .2s}
+
+/* ── HEADER ── */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 2.5rem;height:60px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+.hbrand{display:flex;align-items:baseline;gap:.75rem}
+.hbrand h1{font-size:1.35rem;font-weight:700;letter-spacing:-.03em;color:var(--ink)}
+.hbrand .htag{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.07em}
+.hright{display:flex;align-items:center;gap:.75rem}
+.kbd-hint{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--dim);border:1px solid var(--border);border-radius:5px;padding:.15rem .45rem}
+.theme-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:.3rem .6rem;font-size:.9rem;color:var(--text);transition:background .15s}
+.theme-btn:hover{background:var(--surface2)}
+
+/* ── WORKSPACE ── */
+.workspace{flex:1;display:grid;grid-template-columns:1fr auto 380px;gap:2rem;max-width:1500px;margin:0 auto;width:100%;padding:2rem 2.5rem;align-items:start}
+
+/* ── SOURCE COL ── */
+.source-col{display:flex;flex-direction:column;gap:1.25rem}
+.col-label{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:-.25rem}
+
+.drop-zone{background:var(--white);border:2px dashed var(--border2);border-radius:16px;min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:.9rem;transition:border-color .2s,background .2s;padding:2rem}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue);background:var(--surface)}
+.drop-zone.has-video{border-style:solid;border-color:var(--border);min-height:unset;padding:0;overflow:hidden;cursor:default;border-radius:12px}
+.dz-icon{width:60px;height:60px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted)}
+.dz-title{font-size:1rem;font-weight:600;color:var(--text)}
+.dz-sub{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);text-align:center;line-height:1.8}
+.dz-sub strong{color:var(--blue);cursor:pointer;font-weight:500}
+#fileInput{display:none}
+#sourceVideo{width:100%;display:block;max-height:400px;object-fit:contain;background:#000;border-radius:12px}
+
+/* Trim bar */
+.trim-section{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;display:none;flex-direction:column;gap:.75rem;box-shadow:var(--shadow)}
+.trim-section.show{display:flex}
+.trim-header{display:flex;align-items:center;justify-content:space-between}
+.trim-title{font-size:.8rem;font-weight:600}
+.trim-times{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted)}
+.trim-track{position:relative;height:32px;background:var(--surface);border-radius:8px;overflow:hidden;cursor:pointer}
+.trim-played{position:absolute;top:0;bottom:0;left:0;background:rgba(25,82,211,.15);pointer-events:none}
+.trim-range-fill{position:absolute;top:0;bottom:0;background:rgba(25,82,211,.25);pointer-events:none}
+.trim-thumb{position:absolute;top:0;bottom:0;width:8px;background:var(--blue);border-radius:3px;cursor:ew-resize;z-index:2}
+.trim-thumb:hover{background:#0f3eb8}
+.trim-waveform{position:absolute;inset:0;opacity:.4}
+.trim-reset{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:0}
+.trim-reset:hover{text-decoration:underline}
+
+/* Video info */
+.video-info-bar{display:none;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:.75rem 1.25rem;grid-template-columns:repeat(5,1fr);gap:.75rem;box-shadow:var(--shadow)}
+.video-info-bar.show{display:grid}
+.vi-item{display:flex;flex-direction:column;gap:.2rem}
+.vi-key{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.vi-val{font-size:.88rem;font-weight:600;color:var(--text)}
+
+/* ── PHONE COL ── */
+.phone-col{display:flex;flex-direction:column;align-items:center;gap:1.25rem}
+.phone-outer{background:var(--phone-body);border-radius:50px;padding:18px 13px 22px;box-shadow:var(--shadow-lg),0 0 0 1.5px rgba(0,0,0,.5);position:relative;width:320px}
+.psb{position:absolute;background:#2a2926;border-radius:3px}
+.psb.v1{width:3px;height:28px;left:-3px;top:88px}
+.psb.v2{width:3px;height:28px;left:-3px;top:124px}
+.psb.pw{width:3px;height:42px;right:-3px;top:108px}
+.phone-inner{background:var(--phone-screen);border-radius:38px;overflow:hidden;position:relative}
+.phone-status{position:absolute;top:0;left:0;right:0;height:38px;z-index:10;display:flex;align-items:flex-start;justify-content:space-between;padding:10px 22px 0;pointer-events:none}
+.phone-time{font-family:'DM Mono',monospace;font-size:.68rem;font-weight:500;color:rgba(255,255,255,.85)}
+.phone-icons{font-size:.65rem;color:rgba(255,255,255,.7);letter-spacing:.05em}
+.phone-notch-wrap{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:11;pointer-events:none}
+.phone-notch{width:100px;height:26px;background:var(--phone-body);border-radius:0 0 16px 16px}
+.phone-screen-area{width:294px;height:524px;position:relative;background:#111}
+#outputCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#outputVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:none;background:#000}
+.screen-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;pointer-events:none}
+.se-icon{font-size:2.5rem;opacity:.15}
+.se-text{font-family:'DM Mono',monospace;font-size:.62rem;color:rgba(255,255,255,.2);text-align:center;line-height:1.6}
+.conv-overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:20}
+.conv-overlay.show{display:flex}
+.conv-spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.15);border-top-color:white;border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.conv-pct{font-family:'DM Mono',monospace;font-size:1.6rem;font-weight:500;color:white}
+.conv-detail{font-family:'DM Mono',monospace;font-size:.62rem;color:rgba(255,255,255,.45);text-align:center}
+.conv-eta{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.3)}
+.phone-home-bar{margin:9px auto 0;width:90px;height:4px;background:rgba(255,255,255,.2);border-radius:99px}
+
+/* Output controls */
+.output-controls{width:320px;background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1rem 1.25rem;display:none;flex-direction:column;gap:.75rem;box-shadow:var(--shadow)}
+.output-controls.show{display:flex}
+.oc-top{display:flex;align-items:center;justify-content:space-between}
+.oc-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.oc-time{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text);font-weight:500}
+.scrub-wrap{position:relative;height:28px;display:flex;align-items:center;cursor:pointer}
+.scrub-track{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:5px;background:var(--surface2);border-radius:99px;pointer-events:none}
+.scrub-fill{height:100%;background:var(--ink);border-radius:99px;width:0%;pointer-events:none;transition:width .05s linear}
+#scrubInput{position:absolute;left:0;right:0;width:100%;opacity:0;height:28px;cursor:pointer;-webkit-appearance:none;appearance:none;background:transparent;z-index:10;margin:0;padding:0}
+.oc-btns{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.oc-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text);font-size:.78rem;padding:.38rem .75rem;transition:all .15s;font-family:'DM Mono',monospace;white-space:nowrap}
+.oc-btn:hover{background:var(--surface2);border-color:var(--border2)}
+.oc-play{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+.oc-play:hover{opacity:.85}
+.oc-dl{margin-left:auto;background:none;border:1px solid var(--green);color:var(--green);font-family:'DM Mono',monospace;font-size:.62rem;padding:.38rem .8rem;border-radius:8px;cursor:pointer;text-decoration:none;transition:background .15s;white-space:nowrap}
+.oc-dl:hover{background:rgba(26,122,64,.08)}
+.oc-vol{display:flex;align-items:center;gap:.5rem}
+.oc-vol-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+.oc-vol input{width:70px;height:3px;-webkit-appearance:none;appearance:none;background:var(--surface);border-radius:99px;outline:none;cursor:pointer}
+.oc-vol input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--ink);cursor:pointer}
+
+/* ── SETTINGS COL ── */
+.settings-col{display:flex;flex-direction:column;gap:1rem}
+
+.card{background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.card-hd{padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
+.card-title{font-size:.82rem;font-weight:600;color:var(--text)}
+.card-badge{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:.1rem .45rem}
+.card-bd{padding:1.1rem 1.25rem}
+
+/* Stretch */
+.stretch-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem}
+.stretch-label{font-size:.82rem;font-weight:500}
+.stretch-value{font-family:'DM Mono',monospace;font-size:.82rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.18rem .55rem;min-width:50px;text-align:center}
+input.big-range{-webkit-appearance:none;appearance:none;width:100%;height:4px;background:var(--surface2);border-radius:99px;outline:none;cursor:pointer}
+input.big-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--ink);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .1s}
+input.big-range::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.range-labels{display:flex;justify-content:space-between;margin-top:.35rem}
+.range-labels span{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted)}
+
+/* Anchor */
+.anchor-row{display:flex;gap:.5rem;margin-top:.9rem}
+.anchor-btn{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:.45rem;cursor:pointer;text-align:center;font-size:.72rem;font-weight:500;color:var(--muted);transition:all .15s}
+.anchor-btn:hover{border-color:var(--border2);color:var(--text)}
+.anchor-btn.active{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+
+/* Filters */
+.filter-grid{display:flex;flex-direction:column;gap:.75rem}
+.filter-row{display:flex;align-items:center;gap:.75rem}
+.filter-name{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);width:80px;flex-shrink:0}
+.filter-val{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text);width:32px;text-align:right}
+.filter-reset{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:0}
+.filter-reset:hover{text-decoration:underline}
+.reset-all-btn{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:0}
+.reset-all-btn:hover{color:var(--red)}
+
+/* Quality pills */
+.qual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.q-pill{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:.7rem .4rem;cursor:pointer;text-align:center;transition:all .15s}
+.q-pill:hover{border-color:var(--border2);background:var(--bg)}
+.q-pill.active{background:var(--ink);border-color:var(--ink)}
+.q-pill .qn{font-weight:700;font-size:.88rem;color:var(--text)}
+.q-pill.active .qn{color:var(--bg)}
+.q-pill .qd{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:.15rem}
+.q-pill.active .qd{color:rgba(255,255,255,.45)}
+
+/* Options toggles */
+.option-rows{display:flex;flex-direction:column;gap:.6rem}
+.option-row{display:flex;align-items:center;justify-content:space-between}
+.option-label{font-size:.82rem;font-weight:500;color:var(--text)}
+.option-sub{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);margin-top:.05rem}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:var(--surface2);border:1px solid var(--border);border-radius:99px;cursor:pointer;transition:background .2s}
+.toggle input:checked+.toggle-track{background:var(--ink);border-color:var(--ink)}
+.toggle-track::after{content:'';position:absolute;width:14px;height:14px;background:white;border-radius:50%;top:2px;left:2px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle input:checked+.toggle-track::after{transform:translateX(16px)}
+
+/* Watermark */
+.watermark-sub{display:none;flex-direction:column;gap:.6rem;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)}
+.watermark-sub.show{display:flex}
+.wm-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;font-family:'DM Sans',sans-serif;font-size:.82rem;color:var(--text);outline:none;transition:border-color .15s}
+.wm-input:focus{border-color:var(--blue)}
+.wm-row{display:flex;gap:.5rem;align-items:center}
+.wm-label{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);width:55px}
+.wm-sel{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text);cursor:pointer;outline:none}
+.wm-color{width:32px;height:28px;border-radius:6px;border:1px solid var(--border);cursor:pointer;padding:0}
+
+/* Speed */
+.speed-pills{display:flex;gap:.4rem;flex-wrap:wrap}
+.speed-pill{background:var(--surface);border:1.5px solid var(--border);border-radius:7px;padding:.3rem .65rem;cursor:pointer;font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);transition:all .15s}
+.speed-pill:hover{border-color:var(--border2);color:var(--text)}
+.speed-pill.active{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+
+/* Convert btn */
+#convertBtn{width:100%;background:var(--ink);color:var(--bg);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:700;padding:.95rem 1.5rem;cursor:pointer;letter-spacing:.01em;transition:opacity .15s,transform .1s,background .2s;display:flex;align-items:center;justify-content:center;gap:.5rem}
+#convertBtn:hover:not(:disabled){opacity:.87;transform:translateY(-1px)}
+#convertBtn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+#convertBtn.stop-mode{background:var(--red)}
+#statusMsg{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);text-align:center;padding:.4rem 0;min-height:1.8em}
+#statusMsg.ok{color:var(--green)}
+#statusMsg.err{color:var(--red)}
+#statusMsg.warn{color:var(--amber)}
+
+/* ── QUEUE ── */
+.queue-section{grid-column:1/-1;background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.queue-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.5rem;border-bottom:1px solid var(--border);background:var(--surface)}
+.queue-head-l{display:flex;align-items:baseline;gap:.75rem}
+.queue-head-title{font-size:.85rem;font-weight:600;color:var(--text)}
+.qcount{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);background:var(--border);border-radius:99px;padding:.1rem .5rem}
+.queue-head-r{display:flex;gap:.5rem;align-items:center}
+.btn-sm{font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;padding:.35rem .85rem;border-radius:8px;cursor:pointer;transition:all .15s;border:1.5px solid var(--border);background:var(--white);color:var(--text)}
+.btn-sm:hover{border-color:var(--border2);background:var(--surface)}
+.btn-sm.primary{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn-sm.primary:hover{opacity:.85}
+.btn-sm:disabled{opacity:.35;cursor:not-allowed}
+.queue-empty{padding:2.5rem;text-align:center;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--dim)}
+.queue-list{display:flex;flex-direction:column}
+
+.qi{display:grid;grid-template-columns:48px 56px 1fr 160px 90px 110px 32px;align-items:center;gap:.9rem;padding:.85rem 1.5rem;border-top:1px solid var(--border);transition:background .15s}
+.qi:first-child{border-top:none}
+.qi:hover:not(.qi-active){background:var(--bg);cursor:pointer}
+.qi.qi-active{background:rgba(25,82,211,.04)}
+.qi.qi-done{background:rgba(26,122,64,.03)}
+.qi.qi-error{background:rgba(217,53,53,.03)}
+.qi-num{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--dim);text-align:center}
+.qi-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:var(--surface);border:1px solid var(--border);flex-shrink:0}
+.qi-info{min-width:0}
+.qi-name{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-meta{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:.12rem}
+.qi-prog{display:flex;flex-direction:column;gap:.25rem}
+.qi-prog-track{height:3px;background:var(--surface2);border-radius:99px;overflow:hidden}
+.qi-prog-fill{height:100%;width:0%;background:var(--blue);transition:width .2s;border-radius:99px}
+.qi-prog-lbl{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted)}
+.qi-badge{font-family:'DM Mono',monospace;font-size:.6rem;padding:.18rem .55rem;border-radius:99px;text-align:center;background:var(--surface);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
+.qi-badge.s-p{background:#fffbe8;color:#8a6a00;border-color:#e8d87a}
+.qi-badge.s-d{background:#edfaf2;color:var(--green);border-color:#a8dfc0}
+.qi-badge.s-e{background:#fff0f0;color:var(--red);border-color:#f5b8b8}
+.qi-dl{display:none;font-family:'DM Mono',monospace;font-size:.6rem;padding:.25rem .55rem;border-radius:7px;text-decoration:none;background:none;border:1px solid var(--green);color:var(--green);white-space:nowrap;transition:background .15s}
+.qi-dl:hover{background:rgba(26,122,64,.08)}
+.qi-dl.show{display:inline-block}
+.qi-rm{background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9rem;padding:.2rem;border-radius:4px;transition:color .1s}
+.qi-rm:hover{color:var(--red)}
+
+/* ── FOOTER ── */
+footer{background:var(--white);border-top:1px solid var(--border);padding:.7rem 2.5rem;display:flex;gap:2rem;align-items:center;flex-wrap:wrap}
+.fi{display:flex;flex-direction:column;gap:.1rem}
+.fi-k{font-family:'DM Mono',monospace;font-size:.52rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.fi-v{font-size:.8rem;font-weight:600;color:var(--text)}
+.shortcut-hint{margin-left:auto;font-family:'DM Mono',monospace;font-size:.6rem;color:var(--dim);display:flex;gap:.75rem;flex-wrap:wrap}
+.shortcut-hint span{display:flex;align-items:center;gap:.25rem}
+kbd{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.1rem .3rem;font-size:.6rem}
+
+@media(max-width:1200px){.workspace{grid-template-columns:1fr 380px}.phone-col{display:none}}
+@media(max-width:780px){.workspace{grid-template-columns:1fr;padding:1rem}.qi{grid-template-columns:40px 1fr 90px 28px}.qi-thumb,.qi-prog,.qi-badge{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbrand">
+    <h1>Reframe</h1>
+    <span class="htag">16:9 → 9:16 VIDEO CONVERTER</span>
+  </div>
+  <div class="hright">
+    <span class="kbd-hint">Space = play/pause · C = convert · Esc = stop</span>
+    <button class="theme-btn" id="themeBtn" title="Toggle dark/light mode">🌙</button>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ── SOURCE ── -->
+  <div class="source-col">
+    <span class="col-label">Source Video</span>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="dz-icon">🎬</div>
+      <div class="dz-title">Drop videos here</div>
+      <div class="dz-sub">or <strong id="browseBtn">browse files</strong><br>MP4 · WebM · MOV — single or multiple</div>
+      <input type="file" id="fileInput" accept="video/*" multiple>
+    </div>
+    <video id="sourceVideo" style="display:none" playsinline></video>
+
+    <!-- Trim controls -->
+    <div class="trim-section" id="trimSection">
+      <div class="trim-header">
+        <span class="trim-title">✂ Trim</span>
+        <span class="trim-times" id="trimTimes">0:00 → 0:00</span>
+        <button class="trim-reset" id="trimReset">Reset</button>
+      </div>
+      <div class="trim-track" id="trimTrack">
+        <canvas class="trim-waveform" id="waveCanvas"></canvas>
+        <div class="trim-played" id="trimPlayed"></div>
+        <div class="trim-range-fill" id="trimRangeFill"></div>
+        <div class="trim-thumb" id="trimIn" style="left:0%"></div>
+        <div class="trim-thumb" id="trimOut" style="right:0%;left:auto"></div>
+      </div>
+    </div>
+
+    <!-- Video info bar -->
+    <div class="video-info-bar" id="videoInfoBar">
+      <div class="vi-item"><span class="vi-key">Resolution</span><span class="vi-val" id="viRes">—</span></div>
+      <div class="vi-item"><span class="vi-key">Duration</span><span class="vi-val" id="viDur">—</span></div>
+      <div class="vi-item"><span class="vi-key">Format</span><span class="vi-val" id="viFmt">—</span></div>
+      <div class="vi-item"><span class="vi-key">FPS (est.)</span><span class="vi-val" id="viFps">—</span></div>
+      <div class="vi-item"><span class="vi-key">Output Size</span><span class="vi-val" id="viOut">—</span></div>
+    </div>
+  </div>
+
+  <!-- ── PHONE ── -->
+  <div class="phone-col">
+    <span class="col-label" style="text-align:center">Output Preview</span>
+
+    <div class="phone-outer">
+      <div class="psb v1"></div><div class="psb v2"></div><div class="psb pw"></div>
+      <div class="phone-inner">
+        <div class="phone-status">
+          <span class="phone-time" id="phoneTime">9:41</span>
+          <span class="phone-icons">▲▲▲ 🔋</span>
+        </div>
+        <div class="phone-notch-wrap"><div class="phone-notch"></div></div>
+        <div class="phone-screen-area" id="phoneScreen">
+          <canvas id="outputCanvas" width="294" height="524"></canvas>
+          <video id="outputVideo" playsinline loop></video>
+          <div class="screen-empty" id="screenEmpty">
+            <div class="se-icon">📱</div>
+            <div class="se-text">Output preview<br>will appear here</div>
+          </div>
+          <div class="conv-overlay" id="convOverlay">
+            <div class="conv-spinner"></div>
+            <div class="conv-pct" id="convPct">0%</div>
+            <div class="conv-detail" id="convDetail">Preparing…</div>
+            <div class="conv-eta" id="convEta"></div>
+          </div>
+        </div>
+        <div class="phone-home-bar"></div>
+      </div>
+    </div>
+
+    <!-- Output playback controls -->
+    <div class="output-controls" id="outputControls">
+      <div class="oc-top">
+        <span class="oc-label">Output · 9:16</span>
+        <span class="oc-time" id="ocTime">0:00 / 0:00</span>
+      </div>
+      <div class="scrub-wrap">
+        <div class="scrub-track"><div class="scrub-fill" id="scrubFill"></div></div>
+        <input type="range" id="scrubInput" min="0" max="1000" value="0" step="1">
+      </div>
+      <div class="oc-btns">
+        <button class="oc-btn oc-play" id="playPauseBtn">▶ Play</button>
+        <button class="oc-btn" id="replayBtn">↺</button>
+        <button class="oc-btn" id="muteOutBtn">🔊</button>
+        <a class="oc-dl" id="outputDlBtn" download>⬇ Download</a>
+      </div>
+      <div class="oc-vol">
+        <span class="oc-vol-label">Volume</span>
+        <input type="range" id="outVolume" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="settings-col">
+
+    <!-- Stretch -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Stretch Bias</span><span class="card-badge" id="stretchPreset">Uniform</span></div>
+      <div class="card-bd">
+        <div class="stretch-row">
+          <span class="stretch-label">Horizontal axis</span>
+          <span class="stretch-value" id="biasVal">0%</span>
+        </div>
+        <input type="range" id="biasSlider" class="big-range" min="-100" max="100" value="0">
+        <div class="range-labels"><span>← Squeeze</span><span>Uniform</span><span>Stretch →</span></div>
+        <!-- Crop anchor (shown when squeezing) -->
+        <div id="anchorRow" class="anchor-row" style="display:none">
+          <button class="anchor-btn active" data-anchor="left">Left</button>
+          <button class="anchor-btn active" data-anchor="center">Center</button>
+          <button class="anchor-btn" data-anchor="right">Right</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Video Filters</span>
+        <button class="reset-all-btn" id="resetFilters">Reset all</button>
+      </div>
+      <div class="card-bd">
+        <div class="filter-grid">
+          <div class="filter-row">
+            <span class="filter-name">Brightness</span>
+            <input type="range" class="big-range" id="fBrightness" min="50" max="200" value="100" style="flex:1">
+            <span class="filter-val" id="fBrightnessVal">100</span>
+            <button class="filter-reset" data-filter="fBrightness" data-default="100">↺</button>
+          </div>
+          <div class="filter-row">
+            <span class="filter-name">Contrast</span>
+            <input type="range" class="big-range" id="fContrast" min="50" max="200" value="100" style="flex:1">
+            <span class="filter-val" id="fContrastVal">100</span>
+            <button class="filter-reset" data-filter="fContrast" data-default="100">↺</button>
+          </div>
+          <div class="filter-row">
+            <span class="filter-name">Saturation</span>
+            <input type="range" class="big-range" id="fSaturate" min="0" max="300" value="100" style="flex:1">
+            <span class="filter-val" id="fSaturateVal">100</span>
+            <button class="filter-reset" data-filter="fSaturate" data-default="100">↺</button>
+          </div>
+          <div class="filter-row">
+            <span class="filter-name">Sharpness</span>
+            <input type="range" class="big-range" id="fSharpness" min="0" max="5" value="0" step="0.5" style="flex:1">
+            <span class="filter-val" id="fSharpnessVal">0</span>
+            <button class="filter-reset" data-filter="fSharpness" data-default="0">↺</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Options</span></div>
+      <div class="card-bd">
+        <div class="option-rows">
+          <div class="option-row">
+            <div><div class="option-label">Mute Output</div><div class="option-sub">Strip audio from exported file</div></div>
+            <label class="toggle"><input type="checkbox" id="optMute"><span class="toggle-track"></span></label>
+          </div>
+          <div class="option-row">
+            <div><div class="option-label">Loop Preview</div><div class="option-sub">Loop source video in preview</div></div>
+            <label class="toggle"><input type="checkbox" id="optLoop"><span class="toggle-track"></span></label>
+          </div>
+          <div class="option-row">
+            <div><div class="option-label">Watermark / Caption</div><div class="option-sub">Burn text onto the output</div></div>
+            <label class="toggle"><input type="checkbox" id="optWatermark"><span class="toggle-track"></span></label>
+          </div>
+        </div>
+        <!-- Watermark sub-options -->
+        <div class="watermark-sub" id="watermarkSub">
+          <input type="text" class="wm-input" id="wmText" placeholder="Enter watermark text…">
+          <div class="wm-row">
+            <span class="wm-label">Position</span>
+            <select class="wm-sel" id="wmPosition">
+              <option value="bottom-center">Bottom Center</option>
+              <option value="top-center">Top Center</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="bottom-right">Bottom Right</option>
+              <option value="center">Center</option>
+            </select>
+          </div>
+          <div class="wm-row">
+            <span class="wm-label">Font Size</span>
+            <input type="range" class="big-range" id="wmSize" min="12" max="72" value="28" style="flex:1">
+            <span class="filter-val" id="wmSizeVal">28</span>
+          </div>
+          <div class="wm-row">
+            <span class="wm-label">Color</span>
+            <input type="color" class="wm-color" id="wmColor" value="#ffffff">
+            <span class="wm-label" style="margin-left:.5rem">Shadow</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" id="wmShadow" checked><span class="toggle-track"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Speed -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Playback Speed</span><span class="card-badge" id="speedBadge">1×</span></div>
+      <div class="card-bd">
+        <div class="speed-pills" id="speedPills">
+          <button class="speed-pill" data-speed="0.25">0.25×</button>
+          <button class="speed-pill" data-speed="0.5">0.5×</button>
+          <button class="speed-pill active" data-speed="1">1×</button>
+          <button class="speed-pill" data-speed="1.5">1.5×</button>
+          <button class="speed-pill" data-speed="2">2×</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quality -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Output Quality</span></div>
+      <div class="card-bd">
+        <div class="qual-grid">
+          <div class="q-pill" data-bitrate="2000000"><div class="qn">SD</div><div class="qd">2 Mbps</div></div>
+          <div class="q-pill active" data-bitrate="6000000"><div class="qn">HD</div><div class="qd">6 Mbps</div></div>
+          <div class="q-pill" data-bitrate="16000000"><div class="qn">4K</div><div class="qd">16 Mbps</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Convert -->
+    <div class="card">
+      <div class="card-bd" style="display:flex;flex-direction:column;gap:.6rem">
+        <button id="convertBtn" disabled>
+          <span id="cbIcon">▶</span>
+          <span id="cbLabel">Convert Current Video</span>
+        </button>
+        <button class="btn-sm primary" id="convertAllBtn" disabled style="width:100%;padding:.65rem;font-size:.82rem;border-radius:10px">
+          Convert All in Queue
+        </button>
+        <div id="statusMsg"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── QUEUE ── -->
+  <div class="queue-section">
+    <div class="queue-head">
+      <div class="queue-head-l">
+        <span class="queue-head-title">Queue</span>
+        <span class="qcount" id="queueCount">0 files</span>
+      </div>
+      <div class="queue-head-r">
+        <button class="btn-sm" id="clearDoneBtn">Clear Done</button>
+        <button class="btn-sm" id="addMoreBtn">+ Add Files</button>
+      </div>
+    </div>
+    <div class="queue-empty" id="queueEmpty">No files yet — drop videos above or click "browse files".</div>
+    <div class="queue-list" id="queueList"></div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="fi"><span class="fi-k">Input</span><span class="fi-v" id="fInput">—</span></div>
+  <div class="fi"><span class="fi-k">Output</span><span class="fi-v" id="fOutput">—</span></div>
+  <div class="fi"><span class="fi-k">Trim</span><span class="fi-v" id="fTrim">—</span></div>
+  <div class="fi"><span class="fi-k">Codec</span><span class="fi-v" id="fCodec">—</span></div>
+  <div class="fi"><span class="fi-k">Speed</span><span class="fi-v" id="fSpeed">1×</span></div>
+  <div class="shortcut-hint">
+    <span><kbd>Space</kbd> Play/Pause</span>
+    <span><kbd>C</kbd> Convert</span>
+    <span><kbd>Esc</kbd> Stop</span>
+    <span><kbd>←</kbd><kbd>→</kbd> Seek ±5s</span>
+  </div>
+</footer>
+
+<script>
+// ─── ELEMENTS ────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const dropZone      = $('dropZone');
+const fileInput     = $('fileInput');
+const sourceVideo   = $('sourceVideo');
+const outputCanvas  = $('outputCanvas');
+const outputVideo   = $('outputVideo');
+const ctx           = outputCanvas.getContext('2d');
+const convertBtn    = $('convertBtn');
+const cbIcon        = $('cbIcon');
+const cbLabel       = $('cbLabel');
+const convertAllBtn = $('convertAllBtn');
+const statusMsg     = $('statusMsg');
+const screenEmpty   = $('screenEmpty');
+const convOverlay   = $('convOverlay');
+const convPct       = $('convPct');
+const convDetail    = $('convDetail');
+const convEta       = $('convEta');
+const outputControls= $('outputControls');
+const scrubInput    = $('scrubInput');
+const scrubFill     = $('scrubFill');
+const ocTime        = $('ocTime');
+const playPauseBtn  = $('playPauseBtn');
+const replayBtn     = $('replayBtn');
+const muteOutBtn    = $('muteOutBtn');
+const outputDlBtn   = $('outputDlBtn');
+const queueList     = $('queueList');
+const queueEmpty    = $('queueEmpty');
+const trimSection   = $('trimSection');
+const trimIn        = $('trimIn');
+const trimOut       = $('trimOut');
+const trimRangeFill = $('trimRangeFill');
+const trimPlayed    = $('trimPlayed');
+const watermarkSub  = $('watermarkSub');
+
+// Canvas
+const PW = 294, PH = 524;
+outputCanvas.width = PW; outputCanvas.height = PH;
+
+// ─── STATE ───────────────────────────────────────────────────────
+let stretchBias   = 0;
+let cropAnchor    = 'center';
+let bitrate       = 6000000;
+let playbackSpeed = 1;
+let trimStart     = 0; // seconds
+let trimEnd       = Infinity;
+let videoDuration = 0;
+let previewRafId  = null;
+let mediaRecorder = null;
+let isConverting  = false;
+let currentItemId = null;
+let queue         = [];
+let recordStartMs = 0;
+let recordStopMs  = 0;
+
+// Filter state
+const filters = { fBrightness: 100, fContrast: 100, fSaturate: 100, fSharpness: 0 };
+
+// ─── AUDIO ───────────────────────────────────────────────────────
+let audioCtx = null, audioSrc = null, audioDest = null, gainNode = null;
+function ensureAudio() {
+  if (audioCtx) return;
+  audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+  audioSrc  = audioCtx.createMediaElementSource(sourceVideo);
+  gainNode  = audioCtx.createGain();
+  audioDest = audioCtx.createMediaStreamDestination();
+  audioSrc.connect(gainNode);
+  gainNode.connect(audioDest);
+  gainNode.connect(audioCtx.destination);
+}
+
+// ─── CLOCK ───────────────────────────────────────────────────────
+function updateClock() {
+  const d = new Date();
+  $('phoneTime').textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+updateClock(); setInterval(updateClock, 30000);
+
+// ─── THEME ───────────────────────────────────────────────────────
+$('themeBtn').onclick = () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  $('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+};
+
+// ─── DROP / BROWSE ───────────────────────────────────────────────
+$('browseBtn').onclick  = e => { e.stopPropagation(); fileInput.click(); };
+$('addMoreBtn').onclick = () => fileInput.click();
+dropZone.onclick = () => { if (!dropZone.classList.contains('has-video')) fileInput.click(); };
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('video/'));
+  if (files.length) addFiles(files);
+});
+fileInput.onchange = () => { addFiles([...fileInput.files]); fileInput.value = ''; };
+
+// ─── QUEUE ───────────────────────────────────────────────────────
+function addFiles(files) {
+  files.forEach(file => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    queue.push({ id, file, status: 'pending' });
+    appendRow(queue[queue.length - 1]);
+  });
+  refreshQueueHeader();
+  if (!currentItemId) previewItem(queue[0]);
+}
+
+function appendRow(item) {
+  queueEmpty.style.display = 'none';
+  const row = document.createElement('div');
+  row.className = 'qi';
+  row.id = `qi-${item.id}`;
+  const idx = queue.indexOf(item) + 1;
+  row.innerHTML = `
+    <div class="qi-num">${idx}</div>
+    <img class="qi-thumb" id="qth-${item.id}" src="">
+    <div class="qi-info">
+      <div class="qi-name" title="${item.file.name}">${item.file.name}</div>
+      <div class="qi-meta" id="qmeta-${item.id}">${fmtBytes(item.file.size)}</div>
+    </div>
+    <div class="qi-prog">
+      <div class="qi-prog-track"><div class="qi-prog-fill" id="qpf-${item.id}"></div></div>
+      <div class="qi-prog-lbl" id="qpl-${item.id}">Pending</div>
+    </div>
+    <div class="qi-badge" id="qsb-${item.id}">pending</div>
+    <a class="qi-dl" id="qdl-${item.id}" target="_blank">⬇ Download</a>
+    <button class="qi-rm" id="qrm-${item.id}" title="Remove">✕</button>
+  `;
+  item.rowEl       = row;
+  item.progFill    = row.querySelector(`#qpf-${item.id}`);
+  item.progLbl     = row.querySelector(`#qpl-${item.id}`);
+  item.statusBadge = row.querySelector(`#qsb-${item.id}`);
+  item.dlEl        = row.querySelector(`#qdl-${item.id}`);
+  row.querySelector(`#qrm-${item.id}`).onclick = e => { e.stopPropagation(); removeItem(item.id); };
+  row.onclick = () => { if (item.status !== 'processing') previewItem(item); };
+  queueList.appendChild(row);
+
+  // Generate thumbnail
+  generateThumbnail(item);
+}
+
+function generateThumbnail(item) {
+  const vid = document.createElement('video');
+  vid.src = URL.createObjectURL(item.file);
+  vid.muted = true;
+  vid.addEventListener('loadeddata', () => {
+    vid.currentTime = Math.min(1, vid.duration / 4);
+  });
+  vid.addEventListener('seeked', () => {
+    const c = document.createElement('canvas');
+    c.width = 96; c.height = 54;
+    c.getContext('2d').drawImage(vid, 0, 0, 96, 54);
+    const thumb = document.getElementById(`qth-${item.id}`);
+    if (thumb) thumb.src = c.toDataURL('image/jpeg', 0.7);
+    // Also update meta with duration
+    const meta = document.getElementById(`qmeta-${item.id}`);
+    if (meta) meta.textContent = `${fmtBytes(item.file.size)} · ${fmtTime(vid.duration)}`;
+    URL.revokeObjectURL(vid.src);
+  }, { once: true });
+}
+
+function removeItem(id) {
+  const idx = queue.findIndex(q => q.id === id);
+  if (idx < 0 || queue[idx].status === 'processing') return;
+  queue[idx].rowEl.remove();
+  queue.splice(idx, 1);
+  refreshQueueHeader();
+  if (currentItemId === id) {
+    currentItemId = null;
+    const next = queue.find(q => q.status === 'pending');
+    if (next) previewItem(next); else convertBtn.disabled = true;
+  }
+}
+
+$('clearDoneBtn').onclick = () => {
+  queue.filter(q => q.status === 'done').forEach(q => q.rowEl.remove());
+  queue = queue.filter(q => q.status !== 'done');
+  refreshQueueHeader();
+};
+
+function refreshQueueHeader() {
+  const n = queue.length;
+  $('queueCount').textContent = `${n} file${n !== 1 ? 's' : ''}`;
+  convertAllBtn.disabled = n === 0 || isConverting;
+  if (n === 0) queueEmpty.style.display = 'block';
+}
+
+function setRowStatus(item, status, badge) {
+  item.status = status;
+  if (item.statusBadge) {
+    item.statusBadge.textContent = badge || status;
+    item.statusBadge.className = 'qi-badge' + (status === 'processing' ? ' s-p' : status === 'done' ? ' s-d' : status === 'error' ? ' s-e' : '');
+  }
+  if (item.rowEl) item.rowEl.className = 'qi' + (status === 'processing' ? ' qi-active' : status === 'done' ? ' qi-done' : status === 'error' ? ' qi-error' : '');
+}
+
+// ─── PREVIEW ─────────────────────────────────────────────────────
+function previewItem(item) {
+  if (previewRafId) { cancelAnimationFrame(previewRafId); previewRafId = null; }
+  currentItemId = item.id;
+
+  outputVideo.style.display = 'none';
+  outputVideo.pause();
+  outputControls.classList.remove('show');
+  outputCanvas.style.display = 'block';
+  screenEmpty.style.display = 'none';
+
+  sourceVideo.pause();
+  sourceVideo.src = URL.createObjectURL(item.file);
+  sourceVideo.muted = true;
+  sourceVideo.loop = $('optLoop').checked;
+  sourceVideo.load();
+
+  sourceVideo.onloadedmetadata = () => {
+    videoDuration = sourceVideo.duration;
+    trimStart = 0;
+    trimEnd   = videoDuration;
+    convertBtn.disabled = false;
+
+    dropZone.innerHTML = '';
+    dropZone.classList.add('has-video');
+    sourceVideo.style.display = 'block';
+    dropZone.appendChild(sourceVideo);
+
+    const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+    const outW = vw, outH = Math.round(vw * 16 / 9);
+    $('viRes').textContent = `${vw}×${vh}`;
+    $('viDur').textContent = fmtTime(videoDuration);
+    $('viFmt').textContent = item.file.type.split('/')[1].toUpperCase();
+    $('viFps').textContent = '30';
+    $('viOut').textContent = `${outW}×${outH}`;
+    $('fInput').textContent  = `${vw}×${vh}`;
+    $('fOutput').textContent = `${outW}×${outH}`;
+    $('fTrim').textContent   = `${fmtTime(trimStart)} – ${fmtTime(trimEnd)}`;
+    $('videoInfoBar').classList.add('show');
+    trimSection.classList.add('show');
+    updateTrimUI();
+
+    sourceVideo.playbackRate = playbackSpeed;
+    startPreview();
+    setStatus(`Loaded: ${item.file.name}`, 'ok');
+  };
+}
+
+function startPreview() {
+  if (previewRafId) cancelAnimationFrame(previewRafId);
+  sourceVideo.muted = true;
+  sourceVideo.currentTime = trimStart;
+  sourceVideo.play();
+
+  // Enforce trim out point during preview
+  sourceVideo.ontimeupdate = () => {
+    if (sourceVideo.currentTime >= trimEnd) {
+      if (sourceVideo.loop) sourceVideo.currentTime = trimStart;
+      else sourceVideo.pause();
+    }
+    // Update trim played indicator
+    const pct = (sourceVideo.currentTime / videoDuration) * 100;
+    if (trimPlayed) trimPlayed.style.width = pct + '%';
+  };
+
+  function loop() {
+    if (sourceVideo.readyState >= 2) drawFrame(ctx, PW, PH);
+    previewRafId = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────────
+function getFilterString() {
+  return `brightness(${filters.fBrightness}%) contrast(${filters.fContrast}%) saturate(${filters.fSaturate}%)`;
+}
+
+function drawFrame(tCtx, w, h) {
+  const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+  if (!vw || !vh) return;
+
+  const t = stretchBias / 100;
+  let dw, dh, dx, dy;
+  if (t >= 0) {
+    dh = h + (vh * (w / vw) - h) * t;
+    dw = w;
+    dy = (h - dh) / 2;
+    dx = 0;
+  } else {
+    // squeeze: reduce width, keep height — anchor determines x
+    dw = w + (vw * (h / vh) - w) * (-t);
+    dh = h; dy = 0;
+    if (cropAnchor === 'left')        dx = 0;
+    else if (cropAnchor === 'right')  dx = w - dw;
+    else                              dx = (w - dw) / 2;
+  }
+
+  tCtx.filter = getFilterString();
+  tCtx.fillStyle = '#000';
+  tCtx.fillRect(0, 0, w, h);
+  tCtx.drawImage(sourceVideo, dx, dy, dw, dh);
+
+  // Sharpness (unsharp mask via shadow)
+  if (filters.fSharpness > 0) {
+    tCtx.filter = `drop-shadow(0 0 ${filters.fSharpness * 0.5}px rgba(0,0,0,0))`;
+  }
+  tCtx.filter = 'none';
+
+  // Watermark
+  if ($('optWatermark').checked) {
+    const text = $('wmText').value.trim();
+    if (text) drawWatermark(tCtx, w, h, text);
+  }
+}
+
+function drawWatermark(tCtx, w, h, text) {
+  const size     = parseInt($('wmSize').value);
+  const color    = $('wmColor').value;
+  const pos      = $('wmPosition').value;
+  const shadow   = $('wmShadow').checked;
+  const scale    = w / PW;
+  const fontSize = size * scale;
+
+  tCtx.font = `bold ${fontSize}px DM Sans, sans-serif`;
+  tCtx.textAlign = pos.includes('center') ? 'center' : pos.includes('right') ? 'right' : 'left';
+  tCtx.textBaseline = 'bottom';
+
+  const pad = fontSize * 0.6;
+  let tx = pos === 'center' || pos === 'top-center' || pos === 'bottom-center' ? w / 2 :
+           pos.includes('right') ? w - pad : pad;
+  let ty = pos.includes('top') ? fontSize + pad : h - pad;
+  if (pos === 'center') ty = h / 2;
+
+  if (shadow) {
+    tCtx.shadowColor = 'rgba(0,0,0,0.8)';
+    tCtx.shadowBlur  = fontSize * 0.4;
+    tCtx.shadowOffsetX = fontSize * 0.05;
+    tCtx.shadowOffsetY = fontSize * 0.05;
+  }
+  tCtx.fillStyle = color;
+  tCtx.fillText(text, tx, ty);
+  tCtx.shadowColor = 'transparent';
+  tCtx.shadowBlur = 0;
+}
+
+// ─── TRIM ─────────────────────────────────────────────────────────
+let draggingTrim = null;
+
+function updateTrimUI() {
+  const inPct  = (trimStart / videoDuration) * 100;
+  const outPct = (trimEnd   / videoDuration) * 100;
+  trimIn.style.left  = inPct + '%';
+  trimOut.style.left = outPct + '%';
+  trimRangeFill.style.left  = inPct + '%';
+  trimRangeFill.style.width = (outPct - inPct) + '%';
+  $('trimTimes').textContent = `${fmtTime(trimStart)} → ${fmtTime(trimEnd)}`;
+  $('fTrim').textContent = `${fmtTime(trimStart)} – ${fmtTime(Math.min(trimEnd, videoDuration))}`;
+}
+
+$('trimTrack').addEventListener('mousedown', e => {
+  const rect = $('trimTrack').getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const t    = pct * videoDuration;
+
+  // Determine which thumb is closer
+  const distIn  = Math.abs(t - trimStart);
+  const distOut = Math.abs(t - trimEnd);
+  draggingTrim  = distIn <= distOut ? 'in' : 'out';
+  moveTrim(pct);
+});
+document.addEventListener('mousemove', e => {
+  if (!draggingTrim) return;
+  const rect = $('trimTrack').getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  moveTrim(pct);
+});
+document.addEventListener('mouseup', () => { draggingTrim = null; });
+
+function moveTrim(pct) {
+  const t = pct * videoDuration;
+  if (draggingTrim === 'in') {
+    trimStart = Math.min(t, trimEnd - 0.1);
+    sourceVideo.currentTime = trimStart;
+  } else {
+    trimEnd = Math.max(t, trimStart + 0.1);
+    sourceVideo.currentTime = trimEnd;
+  }
+  updateTrimUI();
+}
+
+$('trimReset').onclick = () => {
+  trimStart = 0; trimEnd = videoDuration; updateTrimUI();
+};
+
+// ─── CONTROLS ────────────────────────────────────────────────────
+$('biasSlider').oninput = function() {
+  stretchBias = parseInt(this.value);
+  $('biasVal').textContent = stretchBias > 0 ? `+${stretchBias}%` : `${stretchBias}%`;
+  const presets = { 0: 'Uniform', '-100': 'Squeeze Only', '100': 'Stretch Only' };
+  $('stretchPreset').textContent = presets[stretchBias] || (stretchBias > 0 ? 'Stretching' : 'Squeezing');
+  $('anchorRow').style.display = stretchBias < 0 ? 'flex' : 'none';
+};
+
+document.querySelectorAll('.anchor-btn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.anchor-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    cropAnchor = b.dataset.anchor;
+  };
+});
+
+// Filters
+['fBrightness','fContrast','fSaturate','fSharpness'].forEach(id => {
+  $(id).oninput = function() {
+    filters[id] = parseFloat(this.value);
+    $(`${id}Val`).textContent = this.value;
+  };
+});
+document.querySelectorAll('.filter-reset').forEach(btn => {
+  btn.onclick = () => {
+    const id  = btn.dataset.filter;
+    const def = parseFloat(btn.dataset.default);
+    $(id).value = def;
+    filters[id] = def;
+    $(`${id}Val`).textContent = def;
+  };
+});
+$('resetFilters').onclick = () => {
+  [['fBrightness',100],['fContrast',100],['fSaturate',100],['fSharpness',0]].forEach(([id,def]) => {
+    $(id).value = def; filters[id] = def; $(`${id}Val`).textContent = def;
+  });
+};
+
+// Quality
+document.querySelectorAll('.q-pill').forEach(p => {
+  p.onclick = () => {
+    document.querySelectorAll('.q-pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    bitrate = parseInt(p.dataset.bitrate);
+  };
+});
+
+// Speed
+document.querySelectorAll('.speed-pill').forEach(p => {
+  p.onclick = () => {
+    document.querySelectorAll('.speed-pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    playbackSpeed = parseFloat(p.dataset.speed);
+    if (sourceVideo.src) sourceVideo.playbackRate = playbackSpeed;
+    $('speedBadge').textContent = playbackSpeed + '×';
+    $('fSpeed').textContent = playbackSpeed + '×';
+  };
+});
+
+// Toggles
+$('optLoop').onchange  = () => { sourceVideo.loop = $('optLoop').checked; };
+$('optWatermark').onchange = () => {
+  watermarkSub.classList.toggle('show', $('optWatermark').checked);
+};
+$('wmSize').oninput = () => { $('wmSizeVal').textContent = $('wmSize').value; };
+
+// ─── OUTPUT PLAYER ───────────────────────────────────────────────
+function showOutputPlayer(blobUrl, dlName) {
+  outputCanvas.style.display = 'none';
+  screenEmpty.style.display  = 'none';
+  convOverlay.classList.remove('show');
+
+  outputVideo.src = blobUrl;
+  outputVideo.style.display = 'block';
+  outputVideo.muted  = false;
+  outputVideo.volume = 1;
+  outputVideo.load();
+
+  outputDlBtn.href     = blobUrl;
+  outputDlBtn.download = dlName;
+
+  // ── FIX: MediaRecorder WebM has duration=Infinity (no seek index).
+  // Seeking to a huge timestamp forces the browser to scan the file,
+  // write a proper duration + index, making the file fully seekable. ──
+  outputVideo.onloadedmetadata = () => {
+    if (outputVideo.duration === Infinity || isNaN(outputVideo.duration)) {
+      outputVideo.currentTime = 1e101;          // trigger full scan
+      outputVideo.addEventListener('timeupdate', function fixDuration() {
+        outputVideo.removeEventListener('timeupdate', fixDuration);
+        outputVideo.currentTime = 0;            // reset to start
+        outputVideo.addEventListener('seeked', function ready() {
+          outputVideo.removeEventListener('seeked', ready);
+          initPlayer();
+        }, { once: true });
+      }, { once: true });
+    } else {
+      initPlayer();
+    }
+  };
+
+  function initPlayer() {
+    outputControls.classList.add('show');
+    updateScrubDisplay();
+
+    // ── Scrub bar ──
+    // Use pointer events for robust drag-to-seek across all devices
+    let scrubbing = false;
+
+    function seekFromInput() {
+      const pct = scrubInput.value / 1000;
+      const target = pct * outputVideo.duration;
+      if (isFinite(target)) outputVideo.currentTime = target;
+      updateScrubDisplay();
+    }
+
+    scrubInput.onpointerdown = () => { scrubbing = true; outputVideo.pause(); };
+    scrubInput.onpointerup   = () => { scrubbing = false; seekFromInput(); };
+    scrubInput.oninput       = () => {
+      // Update fill bar visually while dragging, but only commit seek on pointerup
+      const pct = scrubInput.value / 1000;
+      scrubFill.style.width = (pct * 100) + '%';
+      const t = pct * (outputVideo.duration || 0);
+      ocTime.textContent = `${fmtTime(t)} / ${fmtTime(outputVideo.duration)}`;
+    };
+    // Also allow clicking directly on the track
+    scrubInput.onchange = () => { if (!scrubbing) seekFromInput(); };
+
+    outputVideo.ontimeupdate = () => {
+      if (scrubbing) return;
+      updateScrubDisplay();
+    };
+
+    // ── Buttons ──
+    playPauseBtn.onclick = toggleOutputPlay;
+    outputVideo.onplay   = () => { playPauseBtn.textContent = '⏸ Pause'; };
+    outputVideo.onpause  = () => { playPauseBtn.textContent = '▶ Play';  };
+    outputVideo.onended  = () => { playPauseBtn.textContent = '▶ Play';  scrubInput.value = 0; scrubFill.style.width = '0%'; };
+
+    replayBtn.onclick  = () => { outputVideo.currentTime = 0; outputVideo.play(); };
+    muteOutBtn.onclick = () => {
+      outputVideo.muted   = !outputVideo.muted;
+      muteOutBtn.textContent = outputVideo.muted ? '🔇' : '🔊';
+    };
+    $('outVolume').oninput = function() { outputVideo.volume = this.value; };
+  }
+
+  function updateScrubDisplay() {
+    const dur = outputVideo.duration;
+    if (!dur || !isFinite(dur)) return;
+    const pct = outputVideo.currentTime / dur;
+    scrubFill.style.width = (pct * 100) + '%';
+    scrubInput.value      = Math.round(pct * 1000);
+    ocTime.textContent    = `${fmtTime(outputVideo.currentTime)} / ${fmtTime(dur)}`;
+  }
+}
+
+function toggleOutputPlay() {
+  if (outputVideo.paused) outputVideo.play();
+  else outputVideo.pause();
+}
+
+// ─── CONVERT SINGLE ──────────────────────────────────────────────
+convertBtn.onclick = () => {
+  const item = queue.find(q => q.id === currentItemId);
+  if (!item) return;
+  if (item.status === 'processing') {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      recordStopMs = performance.now();
+      mediaRecorder.stop();
+    }
+    return;
+  }
+  convertItem(item);
+};
+
+// ─── CONVERT ALL ─────────────────────────────────────────────────
+convertAllBtn.onclick = async () => {
+  if (isConverting) return;
+  isConverting = true;
+  convertAllBtn.disabled = true;
+  for (const item of queue.filter(q => q.status === 'pending')) {
+    await loadForConversion(item);
+    await convertItem(item);
+  }
+  isConverting = false;
+  refreshQueueHeader();
+  setStatus('All files converted! 🎉', 'ok');
+};
+
+function loadForConversion(item) {
+  return new Promise(resolve => {
+    if (previewRafId) { cancelAnimationFrame(previewRafId); previewRafId = null; }
+    currentItemId = item.id;
+    outputVideo.style.display = 'none';
+    outputControls.classList.remove('show');
+    outputCanvas.style.display = 'block';
+    sourceVideo.pause();
+    sourceVideo.src = URL.createObjectURL(item.file);
+    sourceVideo.muted = false;
+    sourceVideo.load();
+    sourceVideo.onloadedmetadata = () => {
+      videoDuration = sourceVideo.duration;
+      trimStart = 0; trimEnd = videoDuration;
+      dropZone.innerHTML = '';
+      dropZone.classList.add('has-video');
+      sourceVideo.style.display = 'block';
+      dropZone.appendChild(sourceVideo);
+      resolve();
+    };
+  });
+}
+
+// ─── CORE CONVERSION ─────────────────────────────────────────────
+function convertItem(item) {
+  return new Promise(async resolve => {
+    if (item.status === 'processing') { resolve(); return; }
+
+    ensureAudio();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    // Update UI — avoid .textContent on parent (that was the original bug)
+    setRowStatus(item, 'processing', 'converting');
+    cbIcon.textContent  = '⏹';
+    cbLabel.textContent = 'Stop Conversion';
+    convertBtn.classList.add('stop-mode');
+    convertBtn.disabled = false;
+    setStatus(`Converting: ${item.file.name}`, '');
+
+    convOverlay.classList.add('show');
+    convPct.textContent    = '0%';
+    convDetail.textContent = 'Starting…';
+    convEta.textContent    = '';
+
+    const SCALE = bitrate >= 16000000 ? 4 : bitrate >= 6000000 ? 2 : 1;
+    const RW = 270 * SCALE, RH = 480 * SCALE;
+    const recCanvas = document.createElement('canvas');
+    recCanvas.width = RW; recCanvas.height = RH;
+    const recCtx = recCanvas.getContext('2d');
+
+    const videoStream = recCanvas.captureStream(30);
+
+    // Only add audio track if not muted
+    if (!$('optMute').checked) {
+      const audioTrack = audioDest.stream.getAudioTracks()[0];
+      if (audioTrack) videoStream.addTrack(audioTrack);
+    }
+
+    const mimeTypes = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm;codecs=vp9','video/webm'];
+    const mimeType  = mimeTypes.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+    $('fCodec').textContent = mimeType.split(';')[0].split('/')[1].toUpperCase();
+
+    const chunks = [];
+    mediaRecorder = new MediaRecorder(videoStream, { mimeType, videoBitsPerSecond: bitrate });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+    mediaRecorder.onstop = async () => {
+      // Compute actual recorded duration in milliseconds
+      const recordedDurationMs = recordStopMs > 0
+        ? (recordStopMs - recordStartMs)
+        : (segDuration / playbackSpeed) * 1000;
+
+      convDetail.textContent = 'Finalising…';
+
+      // Patch the WebM Duration field so external players can seek
+      const rawBlob   = new Blob(chunks, { type: mimeType });
+      const fixedBlob = await fixWebmDuration(rawBlob, recordedDurationMs);
+
+      const url    = URL.createObjectURL(fixedBlob);
+      const ext    = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const base   = item.file.name.replace(/\.[^.]+$/, '');
+      const dlName = `${base}_9x16.${ext}`;
+
+      item.dlEl.href = url;
+      item.dlEl.download = dlName;
+      item.dlEl.classList.add('show');
+      item.progFill.style.width = '100%';
+      item.progLbl.textContent  = `Done — ${fmtBytes(fixedBlob.size)}`;
+      setRowStatus(item, 'done', '✓ done');
+
+      // Reset convert button safely
+      cbIcon.textContent  = '▶';
+      cbLabel.textContent = 'Convert Current Video';
+      convertBtn.classList.remove('stop-mode');
+      convertBtn.disabled = false;
+
+      setStatus(`Done: ${item.file.name} — ${fmtBytes(fixedBlob.size)}`, 'ok');
+
+      showOutputPlayer(url, dlName);
+
+      sourceVideo.muted = true;
+      sourceVideo.currentTime = trimStart;
+      startPreview();
+      resolve();
+    };
+
+    // Seek to trim start, unmute, play at chosen speed
+    if (previewRafId) { cancelAnimationFrame(previewRafId); previewRafId = null; }
+    sourceVideo.pause();
+    sourceVideo.muted = false;
+    sourceVideo.playbackRate = playbackSpeed;
+    sourceVideo.currentTime  = trimStart;
+    await new Promise(r => { sourceVideo.onseeked = r; });
+
+    const segDuration = Math.min(trimEnd, videoDuration) - trimStart;
+    let convStartWall = performance.now();
+    recordStartMs = 0;
+    recordStopMs  = 0;
+    mediaRecorder.start(250);
+    recordStartMs = performance.now();
+    sourceVideo.play();
+
+    let stopped = false;
+    function recordLoop() {
+      if (stopped) return;
+      const elapsed    = sourceVideo.currentTime - trimStart;
+      const pct        = Math.min(elapsed / segDuration, 1);
+      const p          = Math.round(pct * 100);
+
+      drawFrameScaled(recCtx, RW, RH);
+      drawFrame(ctx, PW, PH);
+
+      // ETA
+      const wallElapsed = (performance.now() - convStartWall) / 1000;
+      const etaSec      = pct > 0.02 ? Math.round((wallElapsed / pct) * (1 - pct)) : null;
+
+      convPct.textContent    = p + '%';
+      convDetail.textContent = `${fmtTime(elapsed)} / ${fmtTime(segDuration)}`;
+      convEta.textContent    = etaSec !== null ? `ETA ~${fmtTime(etaSec)}` : '';
+
+      item.progFill.style.width    = p + '%';
+      item.progLbl.textContent     = `${p}% — ${fmtTime(elapsed)} / ${fmtTime(segDuration)}`;
+      item.statusBadge.textContent = p + '%';
+
+      if (sourceVideo.currentTime >= Math.min(trimEnd, videoDuration) - 0.1 || pct >= 1) {
+        stopped = true;
+        sourceVideo.pause();
+        recordStopMs = performance.now();
+        setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 350);
+        return;
+      }
+      requestAnimationFrame(recordLoop);
+    }
+    requestAnimationFrame(recordLoop);
+  });
+}
+
+function drawFrameScaled(tCtx, w, h) {
+  const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+  if (!vw || !vh) return;
+  const t = stretchBias / 100;
+  let dw, dh, dx, dy;
+  if (t >= 0) {
+    dh = h + (vh * (w / vw) - h) * t;
+    dw = w; dy = (h - dh) / 2; dx = 0;
+  } else {
+    dw = w + (vw * (h / vh) - w) * (-t);
+    dh = h; dy = 0;
+    if (cropAnchor === 'left')       dx = 0;
+    else if (cropAnchor === 'right') dx = w - dw;
+    else                             dx = (w - dw) / 2;
+  }
+  tCtx.filter = getFilterString();
+  tCtx.fillStyle = '#000';
+  tCtx.fillRect(0, 0, w, h);
+  tCtx.drawImage(sourceVideo, dx, dy, dw, dh);
+  tCtx.filter = 'none';
+  if ($('optWatermark').checked) {
+    const text = $('wmText').value.trim();
+    if (text) drawWatermark(tCtx, w, h, text);
+  }
+}
+
+// ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!outputVideo.paused && outputVideo.style.display !== 'none') toggleOutputPlay();
+    else if (sourceVideo.src && !sourceVideo.paused) sourceVideo.pause();
+    else if (sourceVideo.src) sourceVideo.play();
+  }
+  if (e.code === 'KeyC' && !e.metaKey && !e.ctrlKey) {
+    const item = queue.find(q => q.id === currentItemId);
+    if (item && item.status === 'pending') convertItem(item);
+  }
+  if (e.code === 'Escape') {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+  if (e.code === 'ArrowRight') {
+    const v = outputVideo.style.display !== 'none' ? outputVideo : sourceVideo;
+    if (v.src) v.currentTime = Math.min(v.currentTime + 5, v.duration);
+  }
+  if (e.code === 'ArrowLeft') {
+    const v = outputVideo.style.display !== 'none' ? outputVideo : sourceVideo;
+    if (v.src) v.currentTime = Math.max(v.currentTime - 5, 0);
+  }
+});
+
+// ─── WEBM DURATION PATCHER ───────────────────────────────────────
+// MediaRecorder WebM files have Duration=Infinity and no Cues,
+// making them unseekable in all external players.
+// This patches the Duration field in the Info element so browsers
+// and video players can seek properly.
+
+function readEbmlVint(data, start) {
+  // Read a variable-length integer (VINT) as used in EBML/WebM
+  const first = data[start];
+  if (first === 0) return { value: 0, length: 1 };
+  let numBytes = 1;
+  let mask = 0x80;
+  while (numBytes <= 8 && !(first & mask)) { mask >>= 1; numBytes++; }
+  let value = first & (mask - 1);
+  for (let i = 1; i < numBytes; i++) value = (value * 256) + data[start + i];
+  return { value, length: numBytes };
+}
+
+async function fixWebmDuration(blob, durationMs) {
+  const buf   = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  const view  = new DataView(buf);
+
+  // Search for Duration EBML element ID: 0x44 0x89 (float) or 0x44 0x61 (date)
+  // Duration is inside the Info segment — scan first 32 KB (it's always near the start)
+  const scanLimit = Math.min(bytes.length, 1024 * 32);
+
+  for (let i = 0; i < scanLimit - 12; i++) {
+    if (bytes[i] === 0x44 && bytes[i + 1] === 0x89) {
+      // Found Duration element (float type)
+      const sizeInfo  = readEbmlVint(bytes, i + 2);
+      const dataStart = i + 2 + sizeInfo.length;
+      const dataSize  = sizeInfo.value;
+
+      if (dataSize === 8) {
+        view.setFloat64(dataStart, durationMs, false); // big-endian float64
+        return new Blob([buf], { type: blob.type });
+      }
+      if (dataSize === 4) {
+        view.setFloat32(dataStart, durationMs, false); // big-endian float32
+        return new Blob([buf], { type: blob.type });
+      }
+    }
+  }
+
+  // Duration element not found — return blob unchanged (still playable, just not seekable externally)
+  console.warn('fixWebmDuration: Duration element not found in first 32 KB');
+  return blob;
+}
+
+
+function setStatus(msg, type = '') {
+  statusMsg.textContent = msg;
+  statusMsg.className   = type;
+}
+function fmtTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+function fmtBytes(b) {
+  if (!b) return '—';
+  return b < 1048576 ? (b/1024).toFixed(0) + ' KB' : (b/1048576).toFixed(1) + ' MB';
+}
+</script>
+</body>
+</html>
