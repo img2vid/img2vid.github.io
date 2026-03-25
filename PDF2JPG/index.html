@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to JPG Converter - Offline</title>
+    <!-- Libraries loaded from CDN for convenience, but cached for offline use -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #1a1f2e 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            padding: 40px;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: rgba(255,255,255,0.02);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone:hover, .drop-zone.active {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .drop-zone input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .drop-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.8;
+        }
+
+        .drop-text {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .drop-subtext {
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-info.show {
+            display: flex;
+        }
+
+        .file-icon {
+            font-size: 24px;
+        }
+
+        .file-details {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .settings {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        input[type="number"], select {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        .actions {
+            margin-top: 24px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            margin-top: 24px;
+            display: none;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status.show {
+            display: flex;
+        }
+
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            display: none;
+        }
+
+        button.loading .spinner {
+            display: inline-block;
+        }
+
+        button.loading .btn-text {
+            opacity: 0.8;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .privacy-note {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .privacy-note::before {
+            content: "🔒 ";
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 24px;
+            }
+            
+            .settings {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF to JPG Converter</h1>
+        <p class="subtitle">Convert PDF pages to high-quality JPG images locally. No upload required.</p>
+
+        <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".pdf" />
+            <div class="drop-icon">📄</div>
+            <div class="drop-text">Drop PDF here or click to browse</div>
+            <div class="drop-subtext">Supports PDF files up to 100MB</div>
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-icon">📑</div>
+            <div class="file-details">
+                <div class="file-name" id="fileName">-</div>
+                <div class="file-size" id="fileSize">-</div>
+            </div>
+        </div>
+
+        <div class="settings">
+            <div class="setting-group">
+                <label for="quality">JPEG Quality</label>
+                <select id="quality">
+                    <option value="0.9">High (90%)</option>
+                    <option value="0.7" selected>Good (70%)</option>
+                    <option value="0.5">Medium (50%)</option>
+                    <option value="0.3">Low (30%)</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="scale">Resolution Scale</label>
+                <select id="scale">
+                    <option value="1">1x (Standard)</option>
+                    <option value="2" selected>2x (HD)</option>
+                    <option value="3">3x (Ultra HD)</option>
+                    <option value="4">4x (4K)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="convertBtn" disabled>
+                <span class="spinner"></span>
+                <span class="btn-text">Convert to JPG</span>
+            </button>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-info">
+                <span id="progressText">Processing page 0 of 0...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="privacy-note">All processing happens locally in your browser. Your files never leave your device.</div>
+    </div>
+
+    <script>
+        // Configure PDF.js worker (CDN path - cached for offline use after first load)
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const convertBtn = document.getElementById('convertBtn');
+        const qualitySelect = document.getElementById('quality');
+        const scaleSelect = document.getElementById('scale');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const status = document.getElementById('status');
+
+        let currentFile = null;
+        let isProcessing = false;
+
+        // Event Listeners
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('active');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        convertBtn.addEventListener('click', startConversion);
+
+        function handleFile(file) {
+            if (file.type !== 'application/pdf') {
+                showStatus('Please select a valid PDF file', 'error');
+                return;
+            }
+
+            currentFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatBytes(file.size);
+            fileInfo.classList.add('show');
+            convertBtn.disabled = false;
+            hideStatus();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function startConversion() {
+            if (!currentFile || isProcessing) return;
+
+            isProcessing = true;
+            convertBtn.disabled = true;
+            convertBtn.classList.add('loading');
+            progressContainer.classList.add('active');
+            hideStatus();
+
+            try {
+                const arrayBuffer = await readFileAsArrayBuffer(currentFile);
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const numPages = pdf.numPages;
+                const quality = parseFloat(qualitySelect.value);
+                const scale = parseInt(scaleSelect.value);
+                
+                const zip = new JSZip();
+                const folderName = currentFile.name.replace('.pdf', '') || 'pdf-pages';
+                
+                // Process pages sequentially to avoid memory issues
+                for (let i = 1; i <= numPages; i++) {
+                    updateProgress(i, numPages);
+                    
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    
+                    // Render PDF page to canvas
+                    await page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise;
+                    
+                    // Convert canvas to JPEG blob
+                    const blob = await new Promise(resolve => {
+                        canvas.toBlob(resolve, 'image/jpeg', quality);
+                    });
+                    
+                    // Add to zip with padded filename (001.jpg, 002.jpg, etc.)
+                    const fileNumber = i.toString().padStart(3, '0');
+                    zip.file(`${folderName}/${fileNumber}.jpg`, blob);
+                    
+                    // Clean up
+                    page.cleanup();
+                }
+
+                // Generate ZIP file
+                progressText.textContent = 'Creating ZIP archive...';
+                const zipBlob = await zip.generateAsync({ 
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 6 }
+                });
+
+                // Save file
+                saveAs(zipBlob, `${folderName}.zip`);
+                
+                showStatus(`Success! Converted ${numPages} pages to JPG.`, 'success');
+                
+            } catch (error) {
+                console.error(error);
+                showStatus('Error: ' + error.message, 'error');
+            } finally {
+                isProcessing = false;
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('loading');
+                progressContainer.classList.remove('active');
+            }
+        }
+
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            progressFill.style.width = percent + '%';
+            progressText.textContent = `Processing page ${current} of ${total}...`;
+            progressPercent.textContent = percent + '%';
+        }
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status show ' + type;
+        }
+
+        function hideStatus() {
+            status.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
