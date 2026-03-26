@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Unlimited TTS - Universal Document to Audio/Video</title>
+    
+    <!-- Existing Libraries -->
+    <script src="./jszip.min.js"></script>
+    <script src="./FileSaver.min.js"></script>
+    <script src="./tesseract.min.js"></script>
+    <script src="./pdf.min.js"></script>
+    
+    <!-- New Libraries for Document Support -->
+    <script src="./mammoth.browser.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #151520;
+            --bg-tertiary: #1f1f2e;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --border: #2a2a3c;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6, #d946ef);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid var(--accent);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--accent);
+            margin-top: 8px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .drop-zone {
+            border: 3px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: rgba(99, 102, 241, 0.05);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .format-list {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .text-input-area {
+            width: 100%;
+            min-height: 120px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+
+        .text-input-area:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+            border-color: #3f3f5f;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: #000;
+        }
+
+        .settings-group {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-group:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .settings-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .settings-select, .settings-range {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .settings-range {
+            padding: 0;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--bg-tertiary);
+        }
+
+        .settings-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .jobs-container {
+            display: grid;
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .job-card {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .job-card.processing {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .job-card.completed {
+            border-color: var(--success);
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
+        }
+
+        .job-card.error {
+            border-color: var(--error);
+            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+        }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+
+        .job-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        .job-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .job-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .job-badge.type-docx { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .job-badge.type-pdf { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .job-badge.type-image { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+        .job-badge.type-txt { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+        .job-badge.type-odt { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #8b5cf6, #d946ef);
+            background-size: 200% 100%;
+            animation: gradient-shift 2s ease infinite;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .job-status {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .global-actions {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 12px;
+            z-index: 100;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .fab {
+            padding: 16px 28px;
+            border-radius: 50px;
+            font-size: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .log-container {
+            max-height: 250px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border-left: 3px solid transparent;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-entry.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: var(--error);
+            color: #fca5a5;
+        }
+
+        .log-entry.success {
+            background: rgba(34, 197, 94, 0.1);
+            border-left-color: var(--success);
+            color: #86efac;
+        }
+
+        .log-entry.info {
+            background: rgba(59, 130, 246, 0.1);
+            border-left-color: var(--accent);
+            color: #93c5fd;
+        }
+
+        .log-entry.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: var(--warning);
+            color: #fcd34d;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 12px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .checkbox-wrapper:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper label {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            margin: 20px 0;
+        }
+
+        .voice-preview {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .preview-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .processing-indicator {
+            animation: pulse 2s infinite;
+            color: var(--accent);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f5f;
+        }
+
+        .mespeak-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 15, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(99, 102, 241, 0.3);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .voice-group {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            background: rgba(255,255,255,0.05);
+            margin-top: 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen for voice initialization -->
+    <div id="loadingScreen" class="mespeak-loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Natural Speech Engine</div>
+        <div class="loading-subtext">Loading system voices...</div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🎯 Free Unlimited TTS</h1>
+            <p class="subtitle">Convert Documents, PDFs, Images (OCR) to Audio/Video - 100% Local Processing</p>
+            <div class="badge">Powered by Web Speech API • Natural Male/Female Voices</div>
+        </header>
+
+        <div class="stats" id="statsContainer">
+            <div class="stat-card">
+                <div class="stat-value" id="statQueued">0</div>
+                <div class="stat-label">Queued</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statProcessing">0</div>
+                <div class="stat-label">Processing</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statCompleted">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="left-column">
+                <div class="panel">
+                    <div class="panel-title">📥 Input Sources</div>
+                    
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('files')">Files</button>
+                        <button class="tab" onclick="switchTab('text')">Raw Text</button>
+                    </div>
+
+                    <div id="tab-files" class="tab-content active">
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-zone-icon">📁</div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">Drop files here or click to browse</div>
+                            <div class="format-list">
+                                <strong>Documents:</strong> DOCX, ODT, PDF, TXT, RTF, HTML<br>
+                                <strong>Images:</strong> PNG, JPG, WEBP, GIF, BMP, TIFF<br>
+                                <strong>Combine:</strong> Image + Document → Video
+                            </div>
+                        </div>
+                        <input type="file" id="fileInput" class="file-input" multiple 
+                               accept=".txt,.pdf,.docx,.odt,.rtf,.html,.htm,image/*">
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="autoProcess" checked>
+                            <label for="autoProcess">Start processing immediately</label>
+                        </div>
+                    </div>
+
+                    <div id="tab-text" class="tab-content">
+                        <textarea class="text-input-area" id="textInput" placeholder="Enter or paste text here to convert to audio..."></textarea>
+                        <button class="btn btn-primary" onclick="addTextJob()" style="width: 100%;">
+                            ➕ Add to Processing Queue
+                        </button>
+                    </div>
+
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry info">System initializing...</div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <div class="panel-title">⚙️ Synthesis Settings</div>
+                    
+                    <div class="settings-group">
+                        <label class="settings-label">Voice Selection</label>
+                        <select class="settings-select" id="voiceSelect">
+                            <option value="">Loading voices...</option>
+                        </select>
+                        
+                        <div class="voice-group" id="voiceGenderDisplay">Select a natural voice</div>
+                        
+                        <div class="voice-preview">
+                            <div class="preview-text">"Hello, this is a preview of the selected voice. I sound natural and human."</div>
+                            <button class="btn btn-secondary btn-small" onclick="previewVoice()" style="width: 100%;">
+                                🔊 Preview Voice
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label class="settings-label">Speech Speed</label>
+                        <input type="range" class="settings-range" id="speechSpeed" min="0.5" max="2" step="0.1" value="1">
+                        <div class="range-labels">
+                            <span>Slow</span>
+                            <span id="speedValue">1.0x</span>
+                            <span>Fast</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label class="settings-label">Voice Pitch</label>
+                        <input type="range" class="settings-range" id="speechPitch" min="0.5" max="2" step="0.1" value="1">
+                        <div class="range-labels">
+                            <span>Low</span>
+                            <span id="pitchValue">1.0x</span>
+                            <span>High</span>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <div class="settings-group">
+                        <label class="settings-label">Output Options</label>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="createVideoCheckbox" checked>
+                            <label for="createVideoCheckbox">Generate video when image is paired</label>
+                        </div>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="ocrCheckbox" checked>
+                            <label for="ocrCheckbox">Enable OCR for images</label>
+                        </div>
+
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="keepTextCheckbox" checked>
+                            <label for="keepTextCheckbox">Extracted text as separate download</label>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <div class="settings-group">
+                        <label class="settings-label">Video Settings</label>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="KenBurnsCheckbox" checked>
+                            <label for="KenBurnsCheckbox">Apply Ken Burns effect (slow zoom)</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="panel">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div class="panel-title" style="margin: 0;">🔄 Processing Queue</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-small" onclick="pauseResumeQueue()" id="pauseBtn">
+                                ⏸️ Pause
+                            </button>
+                            <button class="btn btn-secondary btn-small" onclick="clearAll()">
+                                🗑️ Clear All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="jobsContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">No jobs in queue</div>
+                            <div>Drop files or enter text to begin processing</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="global-actions">
+            <button class="btn btn-secondary fab" onclick="clearCompleted()" id="clearBtn" style="display: none;">
+                🧹 Clear Completed
+            </button>
+            <button class="btn btn-success fab" onclick="downloadAllZip()" id="downloadAllBtn" disabled>
+                📦 Download All as ZIP
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
+
+        // State management
+        const state = {
+            jobs: [],
+            isProcessing: false,
+            isPaused: false,
+            jobIdCounter: 0,
+            voicesReady: false,
+            availableVoices: [],
+            currentJob: null
+        };
+
+        // Audio trim configuration - removes first N seconds from output
+        const AUDIO_TRIM_SECONDS = 3;
+
+        // DOM elements
+        const elements = {
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            textInput: document.getElementById('textInput'),
+            jobsContainer: document.getElementById('jobsContainer'),
+            logContainer: document.getElementById('logContainer'),
+            voiceSelect: document.getElementById('voiceSelect'),
+            speechSpeed: document.getElementById('speechSpeed'),
+            speechPitch: document.getElementById('speechPitch'),
+            speedValue: document.getElementById('speedValue'),
+            pitchValue: document.getElementById('pitchValue'),
+            downloadAllBtn: document.getElementById('downloadAllBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            loadingScreen: document.getElementById('loadingScreen'),
+            pauseBtn: document.getElementById('pauseBtn'),
+            voiceGenderDisplay: document.getElementById('voiceGenderDisplay')
+        };
+
+        // Initialize Web Speech API Voices
+        async function initializeVoices() {
+            log('Loading system voices...', 'info');
+            
+            function loadVoices() {
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    state.availableVoices = voices.filter(v => v.lang.startsWith('en')); // Default to English voices
+                    if (state.availableVoices.length === 0) state.availableVoices = voices; // Fallback to all voices
+                    
+                    populateVoiceList();
+                    state.voicesReady = true;
+                    
+                    // Hide loading screen
+                    elements.loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        elements.loadingScreen.style.display = 'none';
+                    }, 500);
+                    
+                    log(`Loaded ${state.availableVoices.length} natural voices`, 'success');
+                }
+            }
+
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+            
+            loadVoices(); // Try immediate load for Chrome
+            
+            // Fallback if voices don't load
+            setTimeout(() => {
+                if (!state.voicesReady) {
+                    loadVoices();
+                    if (!state.voicesReady) {
+                        log('Using default system voice', 'warning');
+                        elements.loadingScreen.style.display = 'none';
+                    }
+                }
+            }, 2000);
+        }
+
+        function populateVoiceList() {
+            elements.voiceSelect.innerHTML = '';
+            
+            // Group voices by gender (best effort based on name patterns)
+            const maleVoices = state.availableVoices.filter(v => 
+                /male|david|mark|james|john|paul|george|daniel|alex|tom/i.test(v.name)
+            );
+            const femaleVoices = state.availableVoices.filter(v => 
+                /female|zira|jenny|aria|sonya|lisa|mary|anna|emma|susan/i.test(v.name) && !maleVoices.includes(v)
+            );
+            const neutralVoices = state.availableVoices.filter(v => 
+                !maleVoices.includes(v) && !femaleVoices.includes(v)
+            );
+
+            function addVoiceGroup(label, voices) {
+                if (voices.length === 0) return;
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = label;
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = state.availableVoices.indexOf(voice);
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    option.dataset.gender = label.includes('Male') ? 'Male' : label.includes('Female') ? 'Female' : 'Neutral';
+                    optgroup.appendChild(option);
+                });
+                elements.voiceSelect.appendChild(optgroup);
+            }
+
+            addVoiceGroup('👨 Male Voices', maleVoices);
+            addVoiceGroup('👩 Female Voices', femaleVoices);
+            addVoiceGroup('🎯 Other Voices', neutralVoices);
+            
+            // Select first female voice by default if available, else first male, else first available
+            const defaultVoice = femaleVoices[0] || maleVoices[0] || state.availableVoices[0];
+            if (defaultVoice) {
+                const index = state.availableVoices.indexOf(defaultVoice);
+                elements.voiceSelect.value = index;
+                updateVoiceDisplay();
+            }
+        }
+
+        function updateVoiceDisplay() {
+            const selectedIndex = elements.voiceSelect.value;
+            const option = elements.voiceSelect.options[elements.voiceSelect.selectedIndex];
+            if (option && option.dataset.gender) {
+                elements.voiceGenderDisplay.textContent = `Selected: ${option.dataset.gender} Voice • Natural Quality`;
+            }
+        }
+
+        // Event listeners
+        elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+        elements.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.dropZone.classList.add('drag-over');
+        });
+        elements.dropZone.addEventListener('dragleave', () => {
+            elements.dropZone.classList.remove('drag-over');
+        });
+        elements.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+        elements.fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        
+        elements.speechSpeed.addEventListener('input', (e) => {
+            elements.speedValue.textContent = e.target.value + 'x';
+        });
+        elements.speechPitch.addEventListener('input', (e) => {
+            elements.pitchValue.textContent = e.target.value + 'x';
+        });
+        
+        elements.voiceSelect.addEventListener('change', updateVoiceDisplay);
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'files') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('tab-files').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('tab-text').classList.add('active');
+            }
+        }
+
+        // Logging system
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const icon = type === 'error' ? '❌' : 
+                        type === 'success' ? '✅' : 
+                        type === 'warning' ? '⚠️' : 'ℹ️';
+            
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${icon} ${message}`;
+            elements.logContainer.appendChild(entry);
+            elements.logContainer.scrollTop = elements.logContainer.scrollHeight;
+            
+            while (elements.logContainer.children.length > 50) {
+                elements.logContainer.removeChild(elements.logContainer.firstChild);
+            }
+        }
+
+        // Preview voice
+        function previewVoice() {
+            if (!state.voicesReady || state.availableVoices.length === 0) {
+                log('Voices not loaded yet', 'warning');
+                return;
+            }
+            
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
+            
+            const voiceIndex = parseInt(elements.voiceSelect.value);
+            const voice = state.availableVoices[voiceIndex];
+            const speed = parseFloat(elements.speechSpeed.value);
+            const pitch = parseFloat(elements.speechPitch.value);
+            
+            const utterance = new SpeechSynthesisUtterance('Hello, this is a preview of the selected voice. I sound natural and human-like, with proper intonation and rhythm.');
+            utterance.voice = voice;
+            utterance.rate = speed;
+            utterance.pitch = pitch;
+            utterance.volume = 1;
+            
+            window.speechSynthesis.speak(utterance);
+            log('Playing voice preview...', 'info');
+        }
+
+        // Job management
+        function createJob(type, name, data, imageFile = null) {
+            const job = {
+                id: ++state.jobIdCounter,
+                type,
+                name: name.replace(/\.[^/.]+$/, ""),
+                originalName: name,
+                data,
+                imageFile,
+                status: 'queued',
+                progress: 0,
+                stage: 'Waiting',
+                text: null,
+                audioBlob: null,
+                videoBlob: null,
+                textBlob: null,
+                error: null,
+                startTime: null,
+                endTime: null
+            };
+            
+            state.jobs.push(job);
+            updateStats();
+            renderJob(job);
+            
+            if (document.getElementById('autoProcess').checked && !state.isPaused) {
+                processQueue();
+            }
+            
+            return job;
+        }
+
+        function updateStats() {
+            const queued = state.jobs.filter(j => j.status === 'queued').length;
+            const processing = state.jobs.filter(j => j.status === 'processing').length;
+            const completed = state.jobs.filter(j => j.status === 'completed').length;
+            
+            document.getElementById('statQueued').textContent = queued;
+            document.getElementById('statProcessing').textContent = processing;
+            document.getElementById('statCompleted').textContent = completed;
+            document.getElementById('statTotal').textContent = state.jobs.length;
+
+            const hasDownloads = state.jobs.some(j => j.audioBlob || j.videoBlob);
+            elements.downloadAllBtn.disabled = !hasDownloads;
+            elements.clearBtn.style.display = completed > 0 ? 'flex' : 'none';
+            elements.pauseBtn.style.display = processing > 0 || queued > 0 ? 'flex' : 'none';
+        }
+
+        function renderJob(job) {
+            const existing = document.getElementById(`job-${job.id}`);
+            const html = generateJobHTML(job);
+            
+            if (existing) {
+                existing.outerHTML = html;
+            } else {
+                if (state.jobs.length === 1) {
+                    elements.jobsContainer.innerHTML = '';
+                }
+                elements.jobsContainer.insertAdjacentHTML('beforeend', html);
+            }
+        }
+
+        function generateJobHTML(job) {
+            const typeClass = `type-${job.type}`;
+            const duration = job.endTime && job.startTime ? 
+                ((job.endTime - job.startTime) / 1000).toFixed(1) + 's' : '-';
+            
+            return `
+                <div class="job-card ${job.status}" id="job-${job.id}">
+                    <div class="job-header">
+                        <div style="flex: 1; min-width: 0;">
+                            <div class="job-title" title="${job.originalName}">${job.name}</div>
+                            <div class="job-badges" style="margin-top: 6px;">
+                                <span class="job-badge ${typeClass}">${job.type.toUpperCase()}</span>
+                                ${job.imageFile ? '<span class="job-badge type-image">IMG</span>' : ''}
+                                <span class="job-badge" style="background: ${getStatusColor(job.status)}20; color: ${getStatusColor(job.status)};">
+                                    ${job.status}
+                                </span>
+                            </div>
+                        </div>
+                        ${job.status === 'completed' ? `<div style="color: var(--text-secondary); font-size: 0.85rem;">${duration}</div>` : ''}
+                    </div>
+
+                    ${job.progress > 0 && job.status !== 'completed' ? `
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${job.progress}%"></div>
+                        </div>
+                    ` : ''}
+
+                    <div class="job-status ${job.status === 'processing' ? 'processing-indicator' : ''}">
+                        ${job.status === 'queued' ? '⏳ Waiting in queue...' : 
+                          job.status === 'processing' ? `⚙️ ${job.stage} ${job.progress > 0 ? '(' + job.progress + '%)' : ''}` :
+                          job.status === 'completed' ? `✅ Complete (${formatBytes((job.audioBlob?.size || 0) + (job.videoBlob?.size || 0))})` : 
+                          job.status === 'error' ? `❌ ${job.error}` : ''}
+                    </div>
+
+                    ${job.imageFile ? `
+                        <img src="${URL.createObjectURL(job.imageFile)}" class="preview-image" id="img-${job.id}">
+                    ` : ''}
+
+                    ${job.audioBlob ? `
+                        <audio controls class="audio-player" id="audio-${job.id}">
+                            <source src="${URL.createObjectURL(job.audioBlob)}" type="audio/webm">
+                        </audio>
+                    ` : ''}
+
+                    ${job.status === 'completed' ? `
+                        <div class="job-actions">
+                            ${job.audioBlob ? `
+                                <button class="btn btn-secondary btn-small" onclick="downloadBlob(${job.id}, 'audio')">
+                                    🎵 Audio
+                                </button>
+                            ` : ''}
+                            ${job.videoBlob ? `
+                                <button class="btn btn-secondary btn-small" onclick="downloadBlob(${job.id}, 'video')">
+                                    🎬 MP4
+                                </button>
+                            ` : ''}
+                            ${job.textBlob ? `
+                                <button class="btn btn-secondary btn-small" onclick="downloadBlob(${job.id}, 'text')">
+                                    📝 TXT
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-secondary btn-small" onclick="removeJob(${job.id})">
+                                🗑️
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                queued: '#94a3b8',
+                processing: '#6366f1',
+                completed: '#22c55e',
+                error: '#ef4444'
+            };
+            return colors[status] || '#94a3b8';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // File handling with comprehensive format support
+        async function handleFiles(files) {
+            log(`Received ${files.length} file(s)`, 'info');
+            
+            const images = [];
+            const documents = [];
+            
+            for (const file of files) {
+                const ext = file.name.split('.').pop().toLowerCase();
+                const type = file.type;
+                
+                if (type.startsWith('image/')) {
+                    images.push(file);
+                } else {
+                    documents.push(file);
+                }
+            }
+            
+            for (let i = 0; i < documents.length; i++) {
+                const doc = documents[i];
+                const image = images.length === documents.length ? images[i] : 
+                             images.length > 0 ? images[0] : null;
+                
+                await processFileEntry(doc, image);
+            }
+            
+            const startIdx = documents.length > 0 ? (images.length === documents.length ? documents.length : 1) : 0;
+            for (let i = startIdx; i < images.length; i++) {
+                await processFileEntry(images[i], null);
+            }
+            
+            if (documents.length === 0) {
+                for (const image of images) {
+                    await processFileEntry(image, null);
+                }
+            }
+        }
+
+        async function processFileEntry(file, pairedImage) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const type = file.type;
+            
+            try {
+                if (ext === 'docx' || ext === 'doc') {
+                    createJob('docx', file.name, file, pairedImage);
+                } else if (ext === 'odt') {
+                    createJob('odt', file.name, file, pairedImage);
+                } else if (ext === 'pdf') {
+                    createJob('pdf', file.name, file, pairedImage);
+                } else if (ext === 'rtf') {
+                    createJob('rtf', file.name, file, pairedImage);
+                } else if (ext === 'html' || ext === 'htm') {
+                    createJob('html', file.name, file, pairedImage);
+                } else if (ext === 'txt' || type === 'text/plain') {
+                    const text = await file.text();
+                    createJob('txt', file.name, text, pairedImage);
+                } else if (type.startsWith('image/')) {
+                    createJob('image', file.name, file, null);
+                } else {
+                    log(`Unsupported format: ${file.name}`, 'warning');
+                }
+            } catch (err) {
+                log(`Error reading ${file.name}: ${err.message}`, 'error');
+            }
+        }
+
+        function addTextJob() {
+            const text = elements.textInput.value.trim();
+            if (!text) {
+                log('Please enter some text', 'warning');
+                return;
+            }
+            createJob('txt', `Text_${Date.now()}.txt`, text);
+            elements.textInput.value = '';
+            log('Added text job to queue', 'success');
+        }
+
+        // Processing pipeline
+        async function processQueue() {
+            if (state.isProcessing || state.isPaused) return;
+            
+            const pending = state.jobs.filter(j => j.status === 'queued');
+            if (pending.length === 0) {
+                state.isProcessing = false;
+                return;
+            }
+
+            state.isProcessing = true;
+            
+            for (const job of pending) {
+                if (state.isPaused) break;
+                
+                try {
+                    state.currentJob = job;
+                    await processJob(job);
+                } catch (err) {
+                    job.status = 'error';
+                    job.error = err.message;
+                    log(`Failed processing ${job.name}: ${err.message}`, 'error');
+                    renderJob(job);
+                }
+                updateStats();
+            }
+
+            state.isProcessing = false;
+            state.currentJob = null;
+            
+            if (!state.isPaused) {
+                processQueue();
+            }
+        }
+
+        async function processJob(job) {
+            job.status = 'processing';
+            job.startTime = Date.now();
+            job.stage = 'Initializing';
+            job.progress = 5;
+            renderJob(job);
+            
+            log(`Starting: ${job.name}`, 'info');
+
+            // Step 1: Text Extraction
+            job.stage = 'Extracting text';
+            job.progress = 10;
+            renderJob(job);
+
+            switch(job.type) {
+                case 'docx':
+                    await extractDocxText(job);
+                    break;
+                case 'odt':
+                    await extractOdtText(job);
+                    break;
+                case 'pdf':
+                    await extractPDFText(job);
+                    break;
+                case 'rtf':
+                    await extractRtfText(job);
+                    break;
+                case 'html':
+                    await extractHtmlText(job);
+                    break;
+                case 'txt':
+                    job.text = job.data;
+                    job.progress = 30;
+                    break;
+                case 'image':
+                    if (document.getElementById('ocrCheckbox').checked) {
+                        await performOCR(job);
+                    } else {
+                        job.text = `[Image: ${job.name}]`;
+                        job.progress = 30;
+                    }
+                    if (!job.imageFile) {
+                        job.imageFile = job.data;
+                    }
+                    break;
+            }
+
+            if (!job.text || job.text.trim().length === 0) {
+                throw new Error('No text content could be extracted');
+            }
+
+            if (document.getElementById('keepTextCheckbox').checked) {
+                job.textBlob = new Blob([job.text], { type: 'text/plain' });
+            }
+
+            job.stage = 'Text extracted';
+            job.progress = 35;
+            renderJob(job);
+
+            // Step 2: Audio Synthesis with Natural Web Speech API
+            await synthesizeAudio(job);
+
+            // Step 3: Video Generation if applicable
+            if (job.imageFile && job.audioBlob && document.getElementById('createVideoCheckbox').checked) {
+                await generateVideo(job);
+            }
+
+            job.status = 'completed';
+            job.endTime = Date.now();
+            job.progress = 100;
+            renderJob(job);
+            
+            log(`Completed: ${job.name} (${((job.endTime - job.startTime) / 1000).toFixed(1)}s)`, 'success');
+        }
+
+        // Document extraction functions
+        async function extractDocxText(job) {
+            const arrayBuffer = await job.data.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            job.text = result.value;
+            
+            if (result.messages.length > 0) {
+                log(`DOCX warnings for ${job.name}: ${result.messages.length} messages`, 'warning');
+            }
+            
+            job.progress = 30;
+            renderJob(job);
+        }
+
+        async function extractOdtText(job) {
+            const zip = await JSZip.loadAsync(job.data);
+            const contentXml = await zip.file('content.xml').async('text');
+            
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(contentXml, 'text/xml');
+            
+            const textElements = xmlDoc.getElementsByTagName('office:text');
+            if (textElements.length > 0) {
+                const textNode = textElements[0];
+                job.text = extractTextFromXML(textNode);
+            } else {
+                job.text = '';
+            }
+            
+            job.progress = 30;
+            renderJob(job);
+        }
+
+        function extractTextFromXML(node) {
+            let text = '';
+            if (node.nodeType === Node.TEXT_NODE) {
+                return node.textContent;
+            }
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                for (const child of node.childNodes) {
+                    text += extractTextFromXML(child);
+                    if (child.nodeName === 'text:p' || child.nodeName === 'text:h') {
+                        text += '\n';
+                    }
+                }
+            }
+            return text;
+        }
+
+        async function extractPDFText(job) {
+            const arrayBuffer = await job.data.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let text = '';
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const pageText = content.items.map(item => item.str).join(' ');
+                text += pageText + '\n\n';
+                
+                job.progress = 10 + Math.floor((i / pdf.numPages) * 20);
+                renderJob(job);
+            }
+
+            job.text = text.trim();
+        }
+
+        async function extractRtfText(job) {
+            const text = await job.data.text();
+            let plainText = text
+                .replace(/[\\{}]/g, '')
+                .replace(/\b[a-z]+\d*\b/gi, '')
+                .replace(/\n\s*\n/g, '\n')
+                .trim();
+            
+            job.text = plainText;
+            job.progress = 30;
+            renderJob(job);
+        }
+
+        async function extractHtmlText(job) {
+            const text = await job.data.text();
+            const temp = document.createElement('div');
+            temp.innerHTML = text;
+            job.text = temp.textContent || temp.innerText || '';
+            job.progress = 30;
+            renderJob(job);
+        }
+
+        async function performOCR(job) {
+            job.stage = 'Performing OCR';
+            
+            const result = await Tesseract.recognize(
+                job.data,
+                'eng',
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            job.progress = Math.floor(m.progress * 30);
+                            renderJob(job);
+                        }
+                    }
+                }
+            );
+
+            job.text = result.data.text;
+        }
+
+        // Audio trimming helper - removes first N seconds from audio blob
+        async function trimAudioBlob(blob, secondsToTrim) {
+            if (secondsToTrim <= 0) return blob;
+            
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            const sampleRate = audioBuffer.sampleRate;
+            const channels = audioBuffer.numberOfChannels;
+            const trimSamples = Math.floor(secondsToTrim * sampleRate);
+            const newLength = audioBuffer.length - trimSamples;
+            
+            if (newLength <= 0) return blob;
+            
+            const trimmedBuffer = audioContext.createBuffer(channels, newLength, sampleRate);
+            for (let i = 0; i < channels; i++) {
+                const oldData = audioBuffer.getChannelData(i);
+                const newData = trimmedBuffer.getChannelData(i);
+                newData.set(oldData.subarray(trimSamples));
+            }
+            
+            // Re-encode to WebM using MediaRecorder
+            const dest = audioContext.createMediaStreamDestination();
+            const source = audioContext.createBufferSource();
+            source.buffer = trimmedBuffer;
+            source.connect(dest);
+            
+            const recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
+            const chunks = [];
+            
+            return new Promise((resolve) => {
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
+                recorder.start();
+                source.start(0);
+                source.onended = () => recorder.stop();
+            });
+        }
+
+        // Natural Audio synthesis with Web Speech API and Tab Audio Capture
+        async function synthesizeAudio(job) {
+            job.stage = 'Capturing natural speech';
+            job.progress = 40;
+            renderJob(job);
+
+            return new Promise(async (resolve, reject) => {
+                try {
+                    // Request tab audio capture to record the TTS output
+                    let displayStream;
+                    try {
+                        displayStream = await navigator.mediaDevices.getDisplayMedia({ 
+                            video: true,  // Video required by some browsers to allow audio capture
+                            audio: true 
+                        });
+                    } catch (err) {
+                        throw new Error('Audio capture permission denied. Please allow "Share audio" when prompted.');
+                    }
+                    
+                    const audioTrack = displayStream.getAudioTracks()[0];
+                    if (!audioTrack) {
+                        displayStream.getTracks().forEach(t => t.stop());
+                        throw new Error('No audio track captured. Please ensure "Share audio" is checked.');
+                    }
+                    
+                    // Create recorder from display audio
+                    const stream = new MediaStream([audioTrack]);
+                    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    const chunks = [];
+                    
+                    mediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) chunks.push(e.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const rawBlob = new Blob(chunks, { type: 'audio/webm' });
+                        displayStream.getTracks().forEach(track => track.stop());
+                        
+                        // Trim the first N seconds
+                        job.stage = 'Trimming audio';
+                        job.progress = 68;
+                        renderJob(job);
+                        
+                        job.audioBlob = await trimAudioBlob(rawBlob, AUDIO_TRIM_SECONDS);
+                        job.progress = 70;
+                        renderJob(job);
+                        resolve();
+                    };
+                    
+                    mediaRecorder.start();
+                    
+                    // Configure TTS
+                    const voiceIndex = parseInt(elements.voiceSelect.value) || 0;
+                    const voice = state.availableVoices[voiceIndex] || state.availableVoices[0];
+                    const speed = parseFloat(elements.speechSpeed.value);
+                    const pitch = parseFloat(elements.speechPitch.value);
+                    
+                    const utterance = new SpeechSynthesisUtterance(job.text);
+                    utterance.voice = voice;
+                    utterance.rate = speed;
+                    utterance.pitch = pitch;
+                    utterance.volume = 1;
+                    
+                    // Monitor progress
+                    const checkProgress = setInterval(() => {
+                        if (job.status === 'error') {
+                            clearInterval(checkProgress);
+                        } else {
+                            job.progress = Math.min(45 + Math.floor(Math.random() * 10), 60);
+                            renderJob(job);
+                        }
+                    }, 800);
+                    
+                    // Handle completion
+                    utterance.onend = () => {
+                        clearInterval(checkProgress);
+                        job.progress = 65;
+                        renderJob(job);
+                        // Small delay to capture trailing audio
+                        setTimeout(() => {
+                            mediaRecorder.stop();
+                        }, 600);
+                    };
+                    
+                    utterance.onerror = (e) => {
+                        clearInterval(checkProgress);
+                        mediaRecorder.stop();
+                        reject(new Error('Speech synthesis error: ' + e.error));
+                    };
+                    
+                    window.speechSynthesis.speak(utterance);
+                    
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        }
+
+        // Video generation with fixed Ken Burns and proper audio muxing
+        async function generateVideo(job) {
+            job.stage = 'Creating video with audio';
+            job.progress = 75;
+            renderJob(job);
+
+            if (!job.audioBlob) {
+                throw new Error('No audio available for video');
+            }
+
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = await createImageBitmap(job.imageFile);
+                    
+                    canvas.width = 1280;
+                    canvas.height = 720;
+                    
+                    // Setup audio from blob
+                    const audioUrl = URL.createObjectURL(job.audioBlob);
+                    const audio = new Audio(audioUrl);
+                    
+                    await new Promise((res, rej) => {
+                        audio.onloadedmetadata = () => res();
+                        audio.onerror = () => rej(new Error('Failed to load audio'));
+                        setTimeout(() => rej(new Error('Audio load timeout')), 10000);
+                    });
+                    
+                    // Capture audio element stream and combine with canvas
+                    const audioStream = audio.captureStream();
+                    const canvasStream = canvas.captureStream(30);
+                    const audioTrack = audioStream.getAudioTracks()[0];
+                    
+                    if (!audioTrack) {
+                        throw new Error('Could not capture audio stream');
+                    }
+                    
+                    const combinedStream = new MediaStream([
+                        ...canvasStream.getVideoTracks(),
+                        audioTrack
+                    ]);
+                    
+                    const mediaRecorder = new MediaRecorder(combinedStream, {
+                        mimeType: 'video/webm;codecs=vp9,opus'
+                    });
+                    
+                    const chunks = [];
+                    mediaRecorder.ondataavailable = e => {
+                        if (e.data.size > 0) chunks.push(e.data);
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        job.videoBlob = new Blob(chunks, { type: 'video/webm' });
+                        URL.revokeObjectURL(audioUrl);
+                        job.progress = 95;
+                        renderJob(job);
+                        resolve();
+                    };
+                    
+                    mediaRecorder.onerror = (e) => {
+                        reject(new Error('Video recording failed: ' + e.message));
+                    };
+                    
+                    // Start recording
+                    mediaRecorder.start();
+                    
+                    // Start playback shortly after to ensure recording has begun
+                    setTimeout(() => audio.play(), 100);
+                    
+                    audio.onended = () => {
+                        setTimeout(() => mediaRecorder.stop(), 400);
+                    };
+                    
+                    // Animation loop with fixed scope for drawWidth/drawHeight
+                    const duration = audio.duration;
+                    const startTime = Date.now();
+                    const useKenBurns = document.getElementById('KenBurnsCheckbox').checked;
+                    
+                    const animate = () => {
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const progress = Math.min(elapsed / duration, 1);
+                        
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        let x, y, drawWidth, drawHeight;
+                        
+                        if (useKenBurns) {
+                            const scale = 1.0 + (progress * 0.15);
+                            const panX = progress * 30;
+                            const panY = progress * 15;
+                            
+                            drawWidth = canvas.width * scale;
+                            drawHeight = (img.height / img.width) * drawWidth;
+                            
+                            x = (canvas.width - drawWidth) / 2 - panX;
+                            y = (canvas.height - drawHeight) / 2 - panY;
+                        } else {
+                            const scaleX = canvas.width / img.width;
+                            const scaleY = canvas.height / img.height;
+                            const scale = Math.max(scaleX, scaleY);
+                            
+                            drawWidth = img.width * scale;
+                            drawHeight = img.height * scale;
+                            
+                            x = (canvas.width - drawWidth) / 2;
+                            y = (canvas.height - drawHeight) / 2;
+                        }
+                        
+                        ctx.drawImage(img, x, y, drawWidth, drawHeight);
+                        
+                        // Text overlay
+                        if (job.text) {
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                            ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+                            ctx.fillStyle = '#fff';
+                            ctx.font = 'bold 28px "Segoe UI", sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(job.name, canvas.width / 2, canvas.height - 35);
+                        }
+                        
+                        if (progress < 1) {
+                            requestAnimationFrame(animate);
+                        }
+                    };
+                    
+                    animate();
+                    
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        }
+
+        // Control functions
+        function pauseResumeQueue() {
+            state.isPaused = !state.isPaused;
+            elements.pauseBtn.innerHTML = state.isPaused ? '▶️ Resume' : '⏸️ Pause';
+            elements.pauseBtn.className = state.isPaused ? 'btn btn-success btn-small' : 'btn btn-secondary btn-small';
+            
+            if (!state.isPaused) {
+                processQueue();
+                log('Queue processing resumed', 'info');
+            } else {
+                window.speechSynthesis.pause();
+                log('Queue processing paused', 'warning');
+            }
+        }
+
+        function clearAll() {
+            if (state.isProcessing && !confirm('Processing is active. Clear anyway?')) {
+                return;
+            }
+            
+            window.speechSynthesis.cancel();
+            
+            state.jobs.forEach(job => {
+                if (job.audioBlob) URL.revokeObjectURL(job.audioBlob);
+                if (job.videoBlob) URL.revokeObjectURL(job.videoBlob);
+            });
+            
+            state.jobs = [];
+            state.isPaused = false;
+            state.isProcessing = false;
+            elements.jobsContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">No jobs in queue</div>
+                    <div>Drop files or enter text to begin processing</div>
+                </div>
+            `;
+            updateStats();
+            log('Queue cleared', 'info');
+        }
+
+        function removeJob(jobId) {
+            const index = state.jobs.findIndex(j => j.id === jobId);
+            if (index > -1) {
+                const job = state.jobs[index];
+                if (job.audioBlob) URL.revokeObjectURL(job.audioBlob);
+                if (job.videoBlob) URL.revokeObjectURL(job.videoBlob);
+                
+                state.jobs.splice(index, 1);
+                const el = document.getElementById(`job-${jobId}`);
+                if (el) el.remove();
+                
+                if (state.jobs.length === 0) {
+                    elements.jobsContainer.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">No jobs in queue</div>
+                            <div>Drop files or enter text to begin processing</div>
+                        </div>
+                    `;
+                }
+                updateStats();
+            }
+        }
+
+        function clearCompleted() {
+            const completed = state.jobs.filter(j => j.status === 'completed');
+            completed.forEach(job => removeJob(job.id));
+            log(`Cleared ${completed.length} completed jobs`, 'success');
+        }
+
+        // Download functions
+        function downloadBlob(jobId, type) {
+            const job = state.jobs.find(j => j.id === jobId);
+            if (!job) return;
+
+            let blob, filename;
+            if (type === 'audio' && job.audioBlob) {
+                blob = job.audioBlob;
+                filename = `${job.name}.webm`;
+            } else if (type === 'video' && job.videoBlob) {
+                blob = job.videoBlob;
+                filename = `${job.name}.webm`;
+            } else if (type === 'text' && job.textBlob) {
+                blob = job.textBlob;
+                filename = `${job.name}.txt`;
+            }
+
+            if (blob) {
+                saveAs(blob, filename);
+                log(`Downloaded: ${filename}`, 'success');
+            }
+        }
+
+        async function downloadAllZip() {
+            const zip = new JSZip();
+            const completedJobs = state.jobs.filter(j => j.status === 'completed');
+            
+            if (completedJobs.length === 0) {
+                log('No completed jobs to download', 'warning');
+                return;
+            }
+            
+            log(`Creating ZIP archive with ${completedJobs.length} jobs...`, 'info');
+            
+            completedJobs.forEach((job, index) => {
+                const folder = zip.folder(`${index + 1}_${job.name}`);
+                
+                if (job.audioBlob) {
+                    folder.file(`${job.name}.webm`, job.audioBlob);
+                }
+                if (job.videoBlob) {
+                    folder.file(`${job.name}.webm`, job.videoBlob);
+                }
+                if (job.textBlob) {
+                    folder.file(`${job.name}.txt`, job.textBlob);
+                }
+            });
+
+            try {
+                const content = await zip.generateAsync({ 
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 6 }
+                });
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                saveAs(content, `MediaExport_${timestamp}.zip`);
+                log('ZIP archive downloaded successfully', 'success');
+            } catch (err) {
+                log('Failed to create ZIP: ' + err.message, 'error');
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initializeVoices();
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            window.speechSynthesis.cancel();
+            state.jobs.forEach(job => {
+                if (job.audioBlob) URL.revokeObjectURL(job.audioBlob);
+                if (job.videoBlob) URL.revokeObjectURL(job.videoBlob);
+            });
+        });
+    </script>
+</body>
+</html>
