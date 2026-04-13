@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Fast Flash Reader - Video Book Generator</title>
+
+    <script src="../pdf.min.js"></script>
+    <script src="../mammoth.browser.min.js"></script>
+    <script src="../ffmpeg.js"></script>
+    <script src="../index.js"></script>
+    
 <style>
         * {
             margin: 0;
@@ -1175,23 +1181,6 @@
     <script>
         'use strict';
 
-        const LIBS = {
-            pdf: {
-                local: '../pdf.min.js',
-                cdn: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js',
-                workerLocal: '../pdf.worker.min.js',
-                workerCdn: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js'
-            },
-            mammoth: {
-                local: '../mammoth.browser.min.js',
-                cdn: 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'
-            },
-            ffmpeg: {
-                bundle: '../ffmpeg.min.js',
-                coreBase: '..'
-            }
-        };
-
         const state = {
             words: [],
             currentIndex: 0,
@@ -1398,11 +1387,11 @@
             if (window.pdfjsLib) return window.pdfjsLib;
             if (!pdfLibPromise) {
                 pdfLibPromise = (async () => {
-                    await loadScriptFromList([LIBS.pdf.local, LIBS.pdf.cdn]);
+                    await loadScriptFromList([pdf.min.js]);
                     if (!window.pdfjsLib) {
                         throw new Error('PDF.js did not initialize');
                     }
-                    const workerSrc = await resolveFirstReachableUrl([LIBS.pdf.workerLocal, LIBS.pdf.workerCdn]);
+                    const workerSrc = await resolveFirstReachableUrl([pdf.worker.min.js]);
                     window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
                     return window.pdfjsLib;
                 })();
@@ -1414,7 +1403,7 @@
             if (window.mammoth) return window.mammoth;
             if (!mammothLibPromise) {
                 mammothLibPromise = (async () => {
-                    await loadScriptFromList([LIBS.mammoth.local, LIBS.mammoth.cdn]);
+                    await loadScriptFromList([mammoth.browser.min.js]);
                     if (!window.mammoth) {
                         throw new Error('Mammoth did not initialize');
                     }
@@ -1427,7 +1416,7 @@
         async function ensureFfmpegBundle() {
             if (window.FFmpeg || window.FFmpegWASM) return true;
             if (!ffmpegBundlePromise) {
-                ffmpegBundlePromise = loadScript(LIBS.ffmpeg.bundle);
+                ffmpegBundlePromise = loadScript(ffmpeg.js);
             }
             return ffmpegBundlePromise;
         }
@@ -1477,12 +1466,14 @@
 
             if (!ffmpegLoaded) {
                 elements.videoStatus.textContent = 'Loading video engine...';
-                const baseURL = LIBS.ffmpeg.coreBase;
+                const baseURL = '..';
                 const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
                 const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+                const ffmpegURL = await toBlobURL(`${baseURL}/814.ffmpeg.js`, 'text/javascript');                
                 await ffmpegInstance.load({
                     coreURL,
-                    wasmURL
+                    wasmURL,
+                    ffmpegURL
                 });
                 ffmpegLoaded = true;
             }
