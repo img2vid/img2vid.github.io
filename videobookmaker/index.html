@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Fast Flash Reader - Video Book Generator</title>
     
-    <script src="../pdf.min.js"></script>
-    <script src="../mammoth.browser.min.js"></script>
-    <script src="../ffmpeg.js"></script>
-    <script src="../index.js"></script>
+    <script src="./pdf.min.js"></script>
+    <script src="./mammoth.browser.min.js"></script>
+    <script src="./ffmpeg.js"></script>
+    <script src="./index.js"></script>
     
     <style>
         * {
@@ -1181,7 +1181,7 @@
 
     <script>
         // Configure PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
 
         // FFmpeg instance
         let ffmpeg = null;
@@ -1286,6 +1286,22 @@
             }
         }
 
+        // Helper function to safely delete file from FFmpeg FS
+        async function safeDeleteFile(filename) {
+            try {
+                await ffmpeg.deleteFile(filename);
+            } catch (e) {
+                // File might not exist, which is fine
+            }
+        }
+
+        // Helper function to safely write file to FFmpeg FS
+        async function safeWriteFile(filename, data) {
+            // Delete first to avoid FS error on overwrite
+            await safeDeleteFile(filename);
+            await ffmpeg.writeFile(filename, data);
+        }
+
         // Helper function to fetch local files and force the correct MIME type
         async function toBlobURL(url, mimeType) {
             const response = await fetch(url);
@@ -1303,18 +1319,14 @@
             try {
                 elements.videoStatus.textContent = 'Loading FFmpeg...';
                 
-                // Fetch local files and convert them to Blobs with explicit MIME types
-                // This solves both worker path resolution and server MIME-type issues
-                const coreURL = await toBlobURL('../ffmpeg-core.js', 'text/javascript');
-                const wasmURL = await toBlobURL('../ffmpeg-core.wasm', 'application/wasm');
-                
-                // CRITICAL: Explicitly pass the missing worker chunk
-                const workerURL = await toBlobURL('../814.ffmpeg.js', 'text/javascript');
+                const coreURL = await toBlobURL('ffmpeg-core.js', 'text/javascript');
+                const wasmURL = await toBlobURL('ffmpeg-core.wasm', 'application/wasm');
+                const workerURL = await toBlobURL('814.ffmpeg.js', 'text/javascript');
                 
                 await ffmpeg.load({
                     coreURL: coreURL,
                     wasmURL: wasmURL,
-                    classWorkerURL: workerURL // Prevents the internal Webpack chunking crash
+                    classWorkerURL: workerURL
                 });
                 
                 ffmpegLoaded = true;
@@ -1327,10 +1339,8 @@
         }
 
         function setupEventListeners() {
-            // Keyboard controls
             document.addEventListener('keydown', handleKeyboard);
             
-            // File handling
             elements.dropZone.addEventListener('click', () => elements.fileInput.click());
             elements.fileInput.addEventListener('change', handleFileSelect);
             
@@ -1349,7 +1359,6 @@
                 handleFiles(e.dataTransfer.files);
             });
 
-            // Audio handling
             elements.audioInput.addEventListener('change', handleAudioSelect);
             
             elements.audioDropZone.addEventListener('dragover', (e) => {
@@ -1374,7 +1383,6 @@
                 }
             });
 
-            // Paste handling
             document.addEventListener('paste', (e) => {
                 if (e.target.tagName !== 'TEXTAREA') {
                     const text = e.clipboardData.getData('text');
@@ -1436,7 +1444,6 @@
             state.audioFile = file;
             elements.audioFileName.textContent = file.name;
             
-            // Get audio duration
             const audio = new Audio();
             audio.src = URL.createObjectURL(file);
             audio.onloadedmetadata = () => {
@@ -1973,7 +1980,16 @@
             updateStage('encode', 'pending');
             updateStage('finalize', 'pending');
             
+            let frameIndex = 0;
+            let totalFrames = 0;
+            
             try {
+                // Clean up any existing files first to prevent FS errors
+                elements.videoStatus.textContent = 'Cleaning up temporary files...';
+                
+                // Try to delete output file if it exists from previous run
+                await safeDeleteFile('output.mp4');
+                
                 // Setup canvas
                 const canvas = elements.videoCanvas;
                 canvas.width = width;
@@ -1982,10 +1998,8 @@
                 
                 // Calculate timing and total frames
                 const msPerWord = 60000 / state.wpm;
-                const framesPerWord = Math.ceil((msPerWord / 1000) * fps);
                 
                 // Calculate exact frame count considering pauses
-                let totalFrames = 0;
                 const wordFrames = [];
                 
                 for (let i = 0; i < state.words.length; i += state.chunkSize) {
@@ -2012,7 +2026,6 @@
                 const fontSize = Math.min(width / 10, height / 4);
                 const fontFamily = state.fontFamily === 'system-ui' ? 'Segoe UI, system-ui, sans-serif' : state.fontFamily;
                 
-                let frameIndex = 0;
                 let encodingStartTime = null;
                 
                 // Setup FFmpeg progress listener for encoding stage
@@ -2021,7 +2034,6 @@
                         const percent = Math.min(100, Math.round(progress * 100));
                         elements.encodingProgressBar.style.width = `${percent}%`;
                         
-                        // Calculate time remaining
                         if (!encodingStartTime) encodingStartTime = Date.now();
                         const elapsed = (Date.now() - encodingStartTime) / 1000;
                         if (progress > 0 && elapsed > 0) {
@@ -2032,9 +2044,8 @@
                             elements.encodingTimeRemaining.textContent = `${mins}m ${secs}s remaining`;
                         }
                         
-                        // Update frame details if available in log
                         if (time) {
-                            const currentFrame = Math.floor(time * fps / 1000000); // time is in microseconds typically
+                            const currentFrame = Math.floor(time * fps / 1000000);
                             elements.encodingDetails.textContent = `Processing frame ${Math.min(currentFrame, totalFrames)}/${totalFrames}`;
                         }
                     }
@@ -2043,7 +2054,7 @@
                 elements.progressTitle.textContent = 'Rendering Frames';
                 elements.videoStatus.textContent = 'Generating video frames...';
                 
-                // Generate frames
+                // Generate frames with error handling for each write
                 for (let i = 0; i < state.words.length; i += state.chunkSize) {
                     const wordsToShow = state.words.slice(i, i + state.chunkSize);
                     const text = wordsToShow.join(' ');
@@ -2057,14 +2068,13 @@
                         
                         // Draw guide lines if enabled
                         if (state.mode === 'highlight' || state.mode === 'rsvp') {
-                            ctx.strokeStyle = state.accentColor + '40'; // 25% opacity
+                            ctx.strokeStyle = state.accentColor + '40';
                             ctx.lineWidth = 2;
                             ctx.beginPath();
                             ctx.moveTo(0, height / 2);
                             ctx.lineTo(width, height / 2);
                             ctx.stroke();
                             
-                            // Draw circles
                             ctx.beginPath();
                             ctx.arc(width * 0.2, height / 2, 10, 0, Math.PI * 2);
                             ctx.arc(width * 0.8, height / 2, 10, 0, Math.PI * 2);
@@ -2091,14 +2101,12 @@
                             const centerX = width / 2;
                             const startX = centerX - totalWidth / 2;
                             
-                            // Draw before
                             ctx.fillStyle = state.textColor;
                             ctx.fillText(before, startX + beforeWidth / 2, height / 2);
                             
-                            // Draw ORP (highlighted)
                             ctx.fillStyle = state.accentColor;
                             ctx.fillText(orp, startX + beforeWidth + orpWidth / 2, height / 2);
-                            // Underline ORP
+                            
                             ctx.strokeStyle = state.accentColor;
                             ctx.lineWidth = 4;
                             const orpY = height / 2 + fontSize * 0.4;
@@ -2107,7 +2115,6 @@
                             ctx.lineTo(startX + beforeWidth + orpWidth, orpY);
                             ctx.stroke();
                             
-                            // Draw after
                             ctx.fillStyle = state.textColor;
                             ctx.fillText(after, startX + beforeWidth + orpWidth + afterWidth / 2, height / 2);
                         } else {
@@ -2115,7 +2122,7 @@
                             ctx.fillText(text, width / 2, height / 2);
                         }
                         
-                        // Convert to image data and save to FFmpeg FS
+                        // Convert to image data and save to FFmpeg FS using safe write
                         const imageData = canvas.toDataURL('image/jpeg', 0.92);
                         const base64Data = imageData.replace(/^data:image\/jpeg;base64,/, '');
                         const binaryData = atob(base64Data);
@@ -2124,7 +2131,15 @@
                             uint8Array[j] = binaryData.charCodeAt(j);
                         }
                         
-                        await ffmpeg.writeFile(`frame_${frameIndex.toString().padStart(6, '0')}.jpg`, uint8Array);
+                        const frameFileName = `frame_${frameIndex.toString().padStart(6, '0')}.jpg`;
+                        
+                        // Use safe write to avoid FS errors on overwrite
+                        try {
+                            await safeWriteFile(frameFileName, uint8Array);
+                        } catch (writeError) {
+                            console.error(`Failed to write frame ${frameIndex}:`, writeError);
+                            throw new Error(`Failed to write frame ${frameIndex}: ${writeError.message}`);
+                        }
                         
                         frameIndex++;
                         
@@ -2134,8 +2149,6 @@
                             elements.videoProgressBar.style.width = `${progress}%`;
                             elements.videoProgressBar.textContent = `${progress}%`;
                             elements.frameCount.textContent = `${frameIndex} / ${totalFrames}`;
-                            
-                            // Allow UI to update
                             await new Promise(r => setTimeout(r, 0));
                         }
                     }
@@ -2163,32 +2176,33 @@
 
                 // Handle audio if provided
                 let videoDuration = 0;
+                let audioFileName = null;
+                
                 if (state.audioFile) {
                     elements.videoStatus.textContent = 'Processing audio & mixing...';
                     
+                    // Create safe audio filename
+                    audioFileName = 'audio_' + Date.now() + getFileExtension(state.audioFile.name);
+                    
                     // Read audio file
                     const audioData = await state.audioFile.arrayBuffer();
-                    await ffmpeg.writeFile('background_audio' + getFileExtension(state.audioFile.name), new Uint8Array(audioData));
+                    await safeWriteFile(audioFileName, new Uint8Array(audioData));
                     
-                    // Calculate video duration in seconds
                     videoDuration = totalFrames / fps;
                     const loopAudio = elements.loopAudio.checked;
                     
-                    // Add audio input and mixing parameters
-                    ffmpegArgs.push('-i', 'background_audio' + getFileExtension(state.audioFile.name));
+                    ffmpegArgs.push('-i', audioFileName);
                     
                     if (loopAudio) {
-                        // Loop audio to match video length
                         ffmpegArgs.push('-stream_loop', '-1');
                     }
                     
-                    // Audio codec and mixing
                     ffmpegArgs.push(
                         '-c:a', 'aac',
                         '-b:a', '128k',
                         '-af', `volume=${state.audioVolume}`,
-                        '-shortest', // Ensure output ends when shortest input ends
-                        '-t', videoDuration.toString() // Explicitly set duration
+                        '-shortest',
+                        '-t', videoDuration.toString()
                     );
                 }
                 
@@ -2221,34 +2235,36 @@
                 elements.videoStatus.textContent = 'Video ready for download';
                 elements.encodingTimeRemaining.textContent = 'Done';
                 
-                // Cleanup frames from memory
-                for (let i = 0; i < frameIndex; i++) {
-                    try {
-                        await ffmpeg.deleteFile(`frame_${i.toString().padStart(6, '0')}.jpg`);
-                    } catch (e) {}
-                }
-                
-                // Cleanup audio file if exists
-                if (state.audioFile) {
-                    try {
-                        await ffmpeg.deleteFile('background_audio' + getFileExtension(state.audioFile.name));
-                    } catch (e) {}
-                }
-                
-                try {
-                    await ffmpeg.deleteFile('output.mp4');
-                } catch (e) {}
-                
             } catch (error) {
                 console.error('Video generation error:', error);
                 showError(`Video generation failed: ${error.message}`);
                 elements.videoStatus.textContent = 'Error occurred';
                 elements.progressTitle.textContent = 'Failed';
             } finally {
+                // Cleanup
                 elements.generateVideoBtn.disabled = false;
                 encodingStartTime = null;
-                // Remove progress listener to avoid memory leaks
                 ffmpeg.off('progress');
+                
+                // Clean up frame files
+                elements.videoStatus.textContent = 'Cleaning up...';
+                for (let i = 0; i < frameIndex; i++) {
+                    try {
+                        await safeDeleteFile(`frame_${i.toString().padStart(6, '0')}.jpg`);
+                    } catch (e) {}
+                }
+                
+                // Clean up audio file if exists
+                if (state.audioFile) {
+                    try {
+                        const audioFileName = 'audio_' + Date.now() + getFileExtension(state.audioFile.name);
+                        await safeDeleteFile(audioFileName);
+                    } catch (e) {}
+                }
+                
+                try {
+                    await safeDeleteFile('output.mp4');
+                } catch (e) {}
             }
         }
 
