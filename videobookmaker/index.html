@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Fast Flash Reader - Video Book Generator</title>
     
-    <script src="../pdf.min.js"></script>
-    <script src="../mammoth.browser.min.js"></script>
-    <script src="../ffmpeg.js"></script>
-    <script src="../index.js"></script>
+    <script src="./pdf.min.js"></script>
+    <script src="./mammoth.browser.min.js"></script>
+    <script src="./ffmpeg.js"></script>
+    <script src="./index.js"></script>
     
     <style>
         * {
@@ -786,6 +786,11 @@
                            oninput="document.getElementById('fpsValue').textContent = this.value">
                 </div>
 
+                <div class="control-group" style="margin-top: 12px; margin-bottom: 12px;">
+                    <div class="control-label">Background Audio (Optional)</div>
+                    <input type="file" id="audioInput" accept="audio/*" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; font-family: inherit;">
+                </div>
+
                 <button class="btn btn-warning" onclick="generateVideo()" id="generateVideoBtn" style="width: 100%; margin-top: 12px;">
                     🎬 Generate Video Book
                 </button>
@@ -1028,7 +1033,7 @@
 
     <script>
         // Configure PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
 
         // FFmpeg instance
         let ffmpeg = null;
@@ -1054,7 +1059,8 @@
             timerInterval: null,
             readerInterval: null,
             fontFamily: 'system-ui',
-            currentFile: null
+            currentFile: null,
+            isEncoding: false // Used to trigger progress bar events correctly
         };
 
         // DOM Elements
@@ -1087,7 +1093,8 @@
             estSize: document.getElementById('estSize'),
             downloadSection: document.getElementById('downloadSection'),
             downloadLink: document.getElementById('downloadLink'),
-            generateVideoBtn: document.getElementById('generateVideoBtn')
+            generateVideoBtn: document.getElementById('generateVideoBtn'),
+            audioInput: document.getElementById('audioInput')
         };
 
         // Initialize
@@ -1107,23 +1114,16 @@
                 });
                 
                 ffmpeg.on('progress', ({ progress, time }) => {
-                    console.log('Progress:', progress, 'Time:', time);
+                    if (state.isEncoding) {
+                        const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
+                        elements.videoProgressBar.style.width = `${percent}%`;
+                        elements.videoProgressBar.textContent = `${percent}%`;
+                    }
                 });
                 
             } catch (error) {
                 console.error('FFmpeg init error:', error);
             }
-        }
-
-        // Helper function to fetch local files and force the correct MIME type
-        async function toBlobURL(url, mimeType) {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch ${url} - Status: ${response.status}`);
-            }
-            const buffer = await response.arrayBuffer();
-            const blob = new Blob([buffer], { type: mimeType });
-            return URL.createObjectURL(blob);
         }
 
         async function loadFFmpeg() {
@@ -1132,25 +1132,18 @@
             try {
                 elements.videoStatus.textContent = 'Loading FFmpeg...';
                 
-                // Fetch local files and convert them to Blobs with explicit MIME types
-                // This solves both worker path resolution and server MIME-type issues
-                const coreURL = await toBlobURL('../ffmpeg-core.js', 'text/javascript');
-                const wasmURL = await toBlobURL('../ffmpeg-core.wasm', 'application/wasm');
-                
-                // CRITICAL: Explicitly pass the missing worker chunk
-                const workerURL = await toBlobURL('../814.ffmpeg.js', 'text/javascript');
-                
+                // Relying on the proper python server for correct MIME types natively
                 await ffmpeg.load({
-                    coreURL: coreURL,
-                    wasmURL: wasmURL,
-                    classWorkerURL: workerURL // Prevents the internal Webpack chunking crash
+                    coreURL: './ffmpeg-core.js',
+                    wasmURL: './ffmpeg-core.wasm',
+                    classWorkerURL: './814.ffmpeg.js' // Explicit worker path fix for webpack chunk error
                 });
                 
                 ffmpegLoaded = true;
                 return true;
             } catch (error) {
                 console.error('Failed to load FFmpeg:', error);
-                showError('Failed to initialize video encoder. Make sure 814.ffmpeg.js is in your folder!');
+                showError('Failed to initialize video encoder. Please ensure your Python server is running the updated script.');
                 return false;
             }
         }
@@ -1720,11 +1713,26 @@
             const height = parseInt(resolution[1]);
             const fps = parseInt(document.getElementById('fpsSlider').value);
             
+            // Check for audio file
+            const audioFile = elements.audioInput.files[0];
+            let hasAudio = false;
+            let audioExt = '';
+            
             elements.generateVideoBtn.disabled = true;
             elements.videoProgress.classList.add('active');
             elements.downloadSection.style.display = 'none';
             
             try {
+                // Load audio file into FFmpeg if present
+                if (audioFile) {
+                    elements.videoStatus.textContent = 'Loading audio...';
+                    audioExt = audioFile.name.split('.').pop().toLowerCase();
+                    const arrayBuffer = await audioFile.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    await ffmpeg.writeFile(`bg_music.${audioExt}`, uint8Array);
+                    hasAudio = true;
+                }
+
                 // Setup canvas
                 const canvas = elements.videoCanvas;
                 canvas.width = width;
@@ -1744,9 +1752,9 @@
                 const fontFamily = state.fontFamily === 'system-ui' ? 'Segoe UI, system-ui, sans-serif' : state.fontFamily;
                 
                 let frameIndex = 0;
-                const batchSize = 30; // Process 30 frames at a time to avoid memory issues
                 
-                elements.videoStatus.textContent = 'Rendering frames...';
+                // PHASE 1: Rendering
+                elements.videoStatus.textContent = 'Phase 1/2: Rendering frames...';
                 
                 // Generate frames
                 for (let i = 0; i < state.words.length; i += state.chunkSize) {
@@ -1840,7 +1848,7 @@
                             uint8Array[j] = binaryData.charCodeAt(j);
                         }
                         
-                        ffmpeg.writeFile(`frame_${frameIndex.toString().padStart(6, '0')}.jpg`, uint8Array);
+                        await ffmpeg.writeFile(`frame_${frameIndex.toString().padStart(6, '0')}.jpg`, uint8Array);
                         
                         frameIndex++;
                         
@@ -1857,20 +1865,41 @@
                     }
                 }
                 
-                elements.videoStatus.textContent = 'Encoding video...';
-                elements.videoProgressBar.style.width = '90%';
+                // PHASE 2: Encoding
+                state.isEncoding = true;
+                elements.videoStatus.textContent = 'Phase 2/2: Encoding video...';
+                elements.videoProgressBar.style.width = '0%';
+                elements.videoProgressBar.textContent = '0%';
                 
-                // Run FFmpeg to create video
-                await ffmpeg.exec([
+                // Build dynamic FFmpeg command arguments
+                let execArgs = [
                     '-framerate', fps.toString(),
-                    '-i', 'frame_%06d.jpg',
+                    '-i', 'frame_%06d.jpg'
+                ];
+
+                // Inject audio loop flag if audio exists
+                if (hasAudio) {
+                    execArgs.push('-stream_loop', '-1', '-i', `bg_music.${audioExt}`);
+                }
+
+                // Standard video encoding flags
+                execArgs.push(
                     '-c:v', 'libx264',
                     '-pix_fmt', 'yuv420p',
                     '-crf', '23',
-                    '-preset', 'ultrafast',
-                    '-movflags', '+faststart',
-                    'output.mp4'
-                ]);
+                    '-preset', 'ultrafast'
+                );
+
+                // Map audio format to AAC and cut it off exactly when the video ends
+                if (hasAudio) {
+                    execArgs.push('-c:a', 'aac', '-b:a', '128k', '-shortest');
+                }
+
+                execArgs.push('-movflags', '+faststart', 'output.mp4');
+                
+                // Run FFmpeg to create video
+                await ffmpeg.exec(execArgs);
+                state.isEncoding = false;
                 
                 // Read output file
                 const data = await ffmpeg.readFile('output.mp4');
@@ -1893,8 +1922,12 @@
                         await ffmpeg.deleteFile(`frame_${i.toString().padStart(6, '0')}.jpg`);
                     } catch (e) {}
                 }
+                if (hasAudio) {
+                    try { await ffmpeg.deleteFile(`bg_music.${audioExt}`); } catch(e) {}
+                }
                 
             } catch (error) {
+                state.isEncoding = false;
                 console.error('Video generation error:', error);
                 showError(`Video generation failed: ${error.message}`);
                 elements.videoStatus.textContent = 'Error';
