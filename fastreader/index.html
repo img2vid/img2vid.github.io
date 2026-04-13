@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Fast Flash Reader - Advanced RSVP Speed Reader</title>
+    
+    <!-- PDF.js for PDF text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Mammoth.js for DOCX text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg-dark: #0f172a;
+            --bg-light: #f8fafc;
+            --text-dark: #1e293b;
+            --text-light: #f1f5f9;
+            --accent: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 300px 1fr 280px;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 1200px) {
+            .app-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+            }
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .panel.dark {
+            background: rgba(15, 23, 42, 0.95);
+            color: var(--text-light);
+        }
+
+        h1, h2, h3 {
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .file-drop-zone {
+            border: 3px dashed var(--primary);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .file-drop-zone:hover, .file-drop-zone.dragover {
+            background: rgba(99, 102, 241, 0.1);
+            transform: scale(1.02);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: var(--text-dark);
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e1;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .reader-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            position: relative;
+        }
+
+        .reader-display {
+            width: 100%;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+            border-radius: 16px;
+            transition: all 0.3s ease;
+            padding: 40px;
+            line-height: 1.4;
+        }
+
+        .word-display {
+            position: relative;
+            display: inline-block;
+        }
+
+        .orp-highlight {
+            color: var(--accent);
+            font-weight: 800;
+            text-decoration: underline;
+            text-decoration-color: var(--accent);
+            text-decoration-thickness: 3px;
+            text-underline-offset: 4px;
+        }
+
+        .guide-lines {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: rgba(99, 102, 241, 0.3);
+            top: 50%;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .guide-lines::before,
+        .guide-lines::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.3;
+        }
+
+        .guide-lines::before { left: 20%; }
+        .guide-lines::after { right: 20%; }
+
+        .progress-container {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            width: 0%;
+            transition: width 0.1s linear;
+            border-radius: 4px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-value {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        select {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+        }
+
+        .color-picker-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="color"] {
+            width: 50px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .theme-presets {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .theme-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .theme-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .theme-btn.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px var(--primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat-card {
+            background: rgba(99, 102, 241, 0.1);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .shortcuts {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 0.875rem;
+        }
+
+        .key {
+            background: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.paused {
+            background: var(--danger);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chunk-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chunk-btn {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .chunk-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .font-size-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .font-btn {
+            width: 36px;
+            height: 36px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+
+        .font-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .pause-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .pause-text {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            z-index: 10;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 12px;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        .file-info {
+            background: rgba(99, 102, 241, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .file-info.visible {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: var(--primary);
+            word-break: break-all;
+        }
+
+        .error-message {
+            color: var(--danger);
+            font-size: 0.875rem;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 6px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        .toggle-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: #e2e8f0;
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle.active {
+            background: var(--primary);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle.active .toggle-slider {
+            transform: translateX(24px);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 8px;
+            background: #e2e8f0;
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .reader-display {
+                font-size: 2rem;
+                min-height: 200px;
+            }
+            
+            .app-container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Panel: Input & Library -->
+        <div class="panel input-section">
+            <h1>📚 Super Fast Flash Reader</h1>
+            
+            <div class="file-drop-zone" id="dropZone">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📁</div>
+                <p><strong>Drop files here</strong></p>
+                <p style="font-size: 0.875rem; color: #64748b; margin-top: 8px;">
+                    Supports PDF, TXT, DOC, DOCX
+                </p>
+                <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx" multiple>
+            </div>
+
+            <div class="file-info" id="fileInfo">
+                <div>Loaded: <span class="file-name" id="fileName"></span></div>
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">
+                    <span id="wordCount">0</span> words ready
+                </div>
+            </div>
+
+            <div style="text-align: center; color: #64748b; font-size: 0.875rem;">— OR —</div>
+
+            <textarea id="textInput" placeholder="Paste your text here..."></textarea>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="loadText()" id="loadBtn">📖 Load Text</button>
+                <button class="btn btn-secondary" onclick="clearText()">🗑️ Clear</button>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="shortcuts">
+                <h3 style="font-size: 1rem;">⌨️ Keyboard Shortcuts</h3>
+                <div class="shortcut-item">
+                    <span>Play / Pause</span>
+                    <span class="key">SPACE</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Restart</span>
+                    <span class="key">R</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Speed +50</span>
+                    <span class="key">↑</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Speed -50</span>
+                    <span class="key">↓</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Next Sentence</span>
+                    <span class="key">→</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Prev Sentence</span>
+                    <span class="key">←</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Fullscreen</span>
+                    <span class="key">F</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel: Reader -->
+        <div class="panel" id="readerPanel">
+            <div class="reader-container">
+                <div class="reader-display" id="readerDisplay">
+                    <div class="guide-lines"></div>
+                    <div class="word-display" id="wordDisplay">
+                        <span style="color: #94a3b8;">Ready to read...</span>
+                    </div>
+                    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+                        <div class="spinner"></div>
+                        <div class="loading-text" id="loadingText">Extracting text...</div>
+                    </div>
+                    <div class="pause-overlay" id="pauseOverlay">
+                        <div class="pause-text">⏸️ PAUSED</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" onclick="seekTo(event)">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="currentPosition">0 / 0 words</span>
+                    <span id="timeRemaining">0:00 remaining</span>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+                <div class="status-item">
+                    <span>⚡ <span id="currentWpm">300</span> WPM</span>
+                </div>
+                <div class="status-item">
+                    <span>📊 <span id="efficiency">0</span>% efficiency</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; justify-content: center; gap: 12px;">
+                <button class="btn btn-primary" onclick="togglePlay()" id="playBtn" style="padding: 16px 32px; font-size: 1.1rem;">
+                    ▶️ Start Reading
+                </button>
+                <button class="btn btn-secondary" onclick="resetReader()">
+                    🔄 Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Settings -->
+        <div class="panel controls-section">
+            <h2 style="font-size: 1.25rem;">⚙️ Settings</h2>
+
+            <div class="control-group">
+                <div class="control-label">Reading Mode</div>
+                <div class="mode-selector">
+                    <button class="mode-btn active" onclick="setMode('rsvp')" id="modeRsvp">RSVP</button>
+                    <button class="mode-btn" onclick="setMode('chunk')" id="modeChunk">Chunk</button>
+                    <button class="mode-btn" onclick="setMode('highlight')" id="modeHighlight">Guide</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Speed (WPM)</span>
+                    <span class="control-value" id="wpmValue">300</span>
+                </div>
+                <input type="range" id="wpmSlider" min="100" max="1000" value="300" step="10" oninput="updateWpm(this.value)">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8;">
+                    <span>100</span>
+                    <span>1000</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Words per Flash</div>
+                <div class="chunk-buttons">
+                    <button class="chunk-btn active" onclick="setChunkSize(1)">1</button>
+                    <button class="chunk-btn" onclick="setChunkSize(2)">2</button>
+                    <button class="chunk-btn" onclick="setChunkSize(3)">3</button>
+                    <button class="chunk-btn" onclick="setChunkSize(4)">4</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Font Size</span>
+                    <span class="control-value" id="fontSizeValue">48px</span>
+                </div>
+                <div class="font-size-controls">
+                    <button class="font-btn" onclick="adjustFontSize(-4)">−</button>
+                    <input type="range" id="fontSizeSlider" min="20" max="80" value="48" oninput="updateFontSize(this.value)">
+                    <button class="font-btn" onclick="adjustFontSize(4)">+</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="toggle-wrapper">
+                    <span style="font-weight: 600; font-size: 0.875rem;">ORP Highlighting</span>
+                    <div class="toggle active" id="orpToggle" onclick="toggleOrp()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">
+                    Highlights optimal recognition point
+                </p>
+            </div>
+
+            <div class="control-group">
+                <div class="toggle-wrapper">
+                    <span style="font-weight: 600; font-size: 0.875rem;">Smart Pauses</span>
+                    <div class="toggle active" id="pauseToggle" onclick="toggleSmartPauses()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">
+                    Pause at punctuation & long words
+                </p>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Theme Presets</div>
+                <div class="theme-presets">
+                    <button class="theme-btn active" style="background: #ffffff; border: 2px solid #e2e8f0;" onclick="setTheme('light')" title="Light"></button>
+                    <button class="theme-btn" style="background: #0f172a;" onclick="setTheme('dark')" title="Dark"></button>
+                    <button class="theme-btn" style="background: #fef3c7;" onclick="setTheme('sepia')" title="Sepia"></button>
+                    <button class="theme-btn" style="background: #ecfdf5;" onclick="setTheme('green')" title="Green"></button>
+                    <button class="theme-btn" style="background: #1e1b4b;" onclick="setTheme('navy')" title="Navy"></button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Custom Colors</div>
+                <div class="color-picker-wrapper">
+                    <div>
+                        <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">Text</label>
+                        <input type="color" id="textColor" value="#1e293b" onchange="updateCustomColors()">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">Background</label>
+                        <input type="color" id="bgColor" value="#ffffff" onchange="updateCustomColors()">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">Accent</label>
+                        <input type="color" id="accentColor" value="#f59e0b" onchange="updateCustomColors()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Font Family</div>
+                <select id="fontFamily" onchange="updateFontFamily(this.value)">
+                    <option value="system-ui">System Default</option>
+                    <option value="Georgia, serif">Serif (Georgia)</option>
+                    <option value="Courier New, monospace">Monospace</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="'Segoe UI', sans-serif">Segoe UI</option>
+                </select>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statWpm">0</div>
+                    <div class="stat-label">Avg WPM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTime">0:00</div>
+                    <div class="stat-label">Time Read</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statWords">0</div>
+                    <div class="stat-label">Words Read</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statProgress">0%</div>
+                    <div class="stat-label">Progress</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // State Management
+        let state = {
+            words: [],
+            currentIndex: 0,
+            isPlaying: false,
+            wpm: 300,
+            chunkSize: 1,
+            fontSize: 48,
+            orpEnabled: true,
+            smartPauses: true,
+            theme: 'light',
+            mode: 'rsvp',
+            textColor: '#1e293b',
+            bgColor: '#ffffff',
+            accentColor: '#f59e0b',
+            startTime: null,
+            totalWordsRead: 0,
+            timerInterval: null,
+            readerInterval: null,
+            fontFamily: 'system-ui',
+            currentFile: null
+        };
+
+        // DOM Elements
+        const elements = {
+            wordDisplay: document.getElementById('wordDisplay'),
+            readerDisplay: document.getElementById('readerDisplay'),
+            playBtn: document.getElementById('playBtn'),
+            progressFill: document.getElementById('progressFill'),
+            progressBar: document.getElementById('progressBar'),
+            currentPosition: document.getElementById('currentPosition'),
+            timeRemaining: document.getElementById('timeRemaining'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText'),
+            pauseOverlay: document.getElementById('pauseOverlay'),
+            textInput: document.getElementById('textInput'),
+            fileInput: document.getElementById('fileInput'),
+            dropZone: document.getElementById('dropZone'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loadingText: document.getElementById('loadingText'),
+            fileInfo: document.getElementById('fileInfo'),
+            fileName: document.getElementById('fileName'),
+            wordCount: document.getElementById('wordCount'),
+            errorMessage: document.getElementById('errorMessage'),
+            loadBtn: document.getElementById('loadBtn')
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            updateDisplay();
+        });
+
+        function setupEventListeners() {
+            // Keyboard controls
+            document.addEventListener('keydown', handleKeyboard);
+            
+            // File handling
+            elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+            elements.fileInput.addEventListener('change', handleFileSelect);
+            
+            elements.dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                elements.dropZone.classList.add('dragover');
+            });
+            
+            elements.dropZone.addEventListener('dragleave', () => {
+                elements.dropZone.classList.remove('dragover');
+            });
+            
+            elements.dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                elements.dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+
+            // Paste handling
+            document.addEventListener('paste', (e) => {
+                if (e.target.tagName !== 'TEXTAREA') {
+                    const text = e.clipboardData.getData('text');
+                    if (text) {
+                        elements.textInput.value = text;
+                        loadText();
+                    }
+                }
+            });
+        }
+
+        function handleKeyboard(e) {
+            if (e.target.tagName === 'TEXTAREA') return;
+            
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'KeyR':
+                    resetReader();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    updateWpm(state.wpm + 50);
+                    document.getElementById('wpmSlider').value = state.wpm;
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    updateWpm(state.wpm - 50);
+                    document.getElementById('wpmSlider').value = state.wpm;
+                    break;
+                case 'ArrowRight':
+                    nextSentence();
+                    break;
+                case 'ArrowLeft':
+                    prevSentence();
+                    break;
+                case 'KeyF':
+                    toggleFullscreen();
+                    break;
+            }
+        }
+
+        // File Handling
+        function handleFileSelect(e) {
+            handleFiles(e.target.files);
+        }
+
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            state.currentFile = file;
+            
+            showLoading(true);
+            hideError();
+            
+            try {
+                const extension = file.name.split('.').pop().toLowerCase();
+                let text = '';
+                
+                if (extension === 'txt') {
+                    text = await readTextFile(file);
+                } else if (extension === 'pdf') {
+                    elements.loadingText.textContent = 'Extracting PDF text...';
+                    text = await extractTextFromPDF(file);
+                } else if (extension === 'docx') {
+                    elements.loadingText.textContent = 'Extracting DOCX text...';
+                    text = await extractTextFromDOCX(file);
+                } else if (extension === 'doc') {
+                    elements.loadingText.textContent = 'Attempting to extract DOC text...';
+                    // Try mammoth first (some .doc files are actually docx)
+                    try {
+                        text = await extractTextFromDOCX(file);
+                    } catch (e) {
+                        text = await readTextFile(file);
+                    }
+                } else {
+                    throw new Error(`Unsupported file format: ${extension}`);
+                }
+                
+                if (!text || text.trim().length === 0) {
+                    throw new Error('No text content found in file');
+                }
+                
+                // Clean up the text
+                text = cleanText(text);
+                
+                elements.textInput.value = text;
+                elements.fileName.textContent = file.name;
+                elements.wordCount.textContent = text.split(/\s+/).filter(w => w.length > 0).length;
+                elements.fileInfo.classList.add('visible');
+                
+                loadText();
+                
+            } catch (error) {
+                console.error('Error processing file:', error);
+                showError(`Error processing file: ${error.message}`);
+            } finally {
+                showLoading(false);
+                elements.loadingText.textContent = 'Extracting text...';
+            }
+        }
+
+        function readTextFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Failed to read text file'));
+                reader.readAsText(file);
+            });
+        }
+
+        // Proper PDF text extraction using PDF.js
+        async function extractTextFromPDF(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfData = new Uint8Array(arrayBuffer);
+                
+                // Load the PDF document
+                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                const pdf = await loadingTask.promise;
+                
+                let fullText = '';
+                const numPages = pdf.numPages;
+                
+                // Extract text from each page
+                for (let i = 1; i <= numPages; i++) {
+                    elements.loadingText.textContent = `Extracting PDF page ${i}/${numPages}...`;
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    
+                    // Join all text items with spaces
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + '\n\n';
+                }
+                
+                return fullText.trim();
+            } catch (error) {
+                console.error('PDF extraction error:', error);
+                throw new Error(`PDF extraction failed: ${error.message}`);
+            }
+        }
+
+        // Proper DOCX text extraction using Mammoth.js
+        async function extractTextFromDOCX(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = async function(event) {
+                    try {
+                        const arrayBuffer = event.target.result;
+                        
+                        // Use mammoth.extractRawText to get plain text
+                        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+                        
+                        if (result.messages.length > 0) {
+                            console.log('DOCX extraction messages:', result.messages);
+                        }
+                        
+                        resolve(result.value);
+                    } catch (error) {
+                        reject(new Error(`DOCX extraction failed: ${error.message}`));
+                    }
+                };
+                
+                reader.onerror = () => reject(new Error('Failed to read DOCX file'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function cleanText(text) {
+            return text
+                .replace(/\r\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/[ \t]+/g, ' ')
+                .trim();
+        }
+
+        function showLoading(show) {
+            elements.loadingOverlay.style.display = show ? 'flex' : 'none';
+            elements.loadBtn.disabled = show;
+        }
+
+        function showError(message) {
+            elements.errorMessage.textContent = message;
+            elements.errorMessage.classList.add('visible');
+            setTimeout(() => {
+                elements.errorMessage.classList.remove('visible');
+            }, 5000);
+        }
+
+        function hideError() {
+            elements.errorMessage.classList.remove('visible');
+        }
+
+        // Text Processing
+        function loadText() {
+            const text = elements.textInput.value.trim();
+            if (!text) {
+                showError('Please enter some text to read');
+                return;
+            }
+            
+            state.words = text.split(/\s+/).filter(w => w.length > 0);
+            state.currentIndex = 0;
+            state.totalWordsRead = 0;
+            state.startTime = null;
+            
+            updateDisplay();
+            updateStats();
+            
+            if (!state.isPlaying) {
+                togglePlay();
+            }
+        }
+
+        function clearText() {
+            elements.textInput.value = '';
+            state.words = [];
+            state.currentIndex = 0;
+            state.isPlaying = false;
+            state.currentFile = null;
+            clearInterval(state.readerInterval);
+            clearInterval(state.timerInterval);
+            elements.fileInfo.classList.remove('visible');
+            updateDisplay();
+            updatePlayButton();
+        }
+
+        // Reading Logic
+        function togglePlay() {
+            if (state.words.length === 0) {
+                showError('No text loaded. Please paste text or upload a file first.');
+                return;
+            }
+            
+            state.isPlaying = !state.isPlaying;
+            updatePlayButton();
+            
+            if (state.isPlaying) {
+                if (state.currentIndex >= state.words.length) {
+                    state.currentIndex = 0;
+                }
+                if (!state.startTime) {
+                    state.startTime = Date.now();
+                    startTimer();
+                }
+                startReading();
+                elements.pauseOverlay.classList.remove('visible');
+                elements.statusIndicator.classList.remove('paused');
+                elements.statusText.textContent = 'Reading...';
+            } else {
+                clearInterval(state.readerInterval);
+                elements.pauseOverlay.classList.add('visible');
+                elements.statusIndicator.classList.add('paused');
+                elements.statusText.textContent = 'Paused';
+            }
+        }
+
+        function updatePlayButton() {
+            elements.playBtn.innerHTML = state.isPlaying ? '⏸️ Pause' : '▶️ Resume';
+        }
+
+        function startReading() {
+            clearInterval(state.readerInterval);
+            
+            const msPerWord = 60000 / state.wpm;
+            
+            const readStep = () => {
+                if (state.currentIndex >= state.words.length) {
+                    finishReading();
+                    return;
+                }
+                
+                displayWords();
+                updateProgress();
+                
+                let delay = msPerWord * state.chunkSize;
+                
+                if (state.smartPauses) {
+                    const currentWord = state.words[state.currentIndex];
+                    const lastChar = currentWord.slice(-1);
+                    
+                    if ('.!?'.includes(lastChar)) delay *= 2;
+                    else if (',;:]'.includes(lastChar)) delay *= 1.5;
+                    
+                    if (currentWord.length > 8) delay *= 1.3;
+                }
+                
+                state.currentIndex += state.chunkSize;
+                state.totalWordsRead += state.chunkSize;
+                
+                state.readerInterval = setTimeout(readStep, delay);
+            };
+            
+            readStep();
+        }
+
+        function displayWords() {
+            const wordsToShow = state.words.slice(state.currentIndex, state.currentIndex + state.chunkSize);
+            const text = wordsToShow.join(' ');
+            
+            if (state.orpEnabled && state.chunkSize === 1 && text.length > 0) {
+                const word = text;
+                const orpIndex = Math.floor(word.length / 2);
+                const before = word.slice(0, orpIndex);
+                const orp = word[orpIndex];
+                const after = word.slice(orpIndex + 1);
+                
+                elements.wordDisplay.innerHTML = `
+                    <span>${escapeHtml(before)}</span><span class="orp-highlight">${escapeHtml(orp)}</span><span>${escapeHtml(after)}</span>
+                `;
+            } else {
+                elements.wordDisplay.textContent = text;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateDisplay() {
+            if (state.words.length === 0) {
+                elements.wordDisplay.innerHTML = '<span style="color: #94a3b8;">Ready to read...</span>';
+                return;
+            }
+            displayWords();
+        }
+
+        function updateProgress() {
+            const progress = (state.currentIndex / state.words.length) * 100;
+            elements.progressFill.style.width = `${progress}%`;
+            
+            elements.currentPosition.textContent = `${Math.min(state.currentIndex, state.words.length)} / ${state.words.length} words`;
+            
+            const remaining = state.words.length - state.currentIndex;
+            const minutes = Math.ceil(remaining / state.wpm);
+            const seconds = Math.floor((remaining % state.wpm) / state.wpm * 60);
+            elements.timeRemaining.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+            
+            document.getElementById('statProgress').textContent = `${Math.round(progress)}%`;
+            document.getElementById('statWords').textContent = state.totalWordsRead;
+        }
+
+        function finishReading() {
+            state.isPlaying = false;
+            clearInterval(state.readerInterval);
+            clearInterval(state.timerInterval);
+            updatePlayButton();
+            elements.statusIndicator.classList.add('paused');
+            elements.statusText.textContent = 'Completed';
+            elements.wordDisplay.innerHTML = '<span style="color: var(--success);">✓ Reading Complete</span>';
+        }
+
+        function resetReader() {
+            state.isPlaying = false;
+            state.currentIndex = 0;
+            clearInterval(state.readerInterval);
+            clearInterval(state.timerInterval);
+            updatePlayButton();
+            updateDisplay();
+            updateProgress();
+            elements.pauseOverlay.classList.remove('visible');
+            elements.statusIndicator.classList.add('paused');
+            elements.statusText.textContent = 'Ready';
+        }
+
+        function seekTo(e) {
+            if (state.words.length === 0) return;
+            
+            const rect = elements.progressBar.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = Math.max(0, Math.min(1, x / rect.width));
+            state.currentIndex = Math.floor(percentage * state.words.length);
+            updateDisplay();
+            updateProgress();
+        }
+
+        function nextSentence() {
+            while (state.currentIndex < state.words.length) {
+                const word = state.words[state.currentIndex];
+                state.currentIndex++;
+                if (word.match(/[.!?]$/)) break;
+            }
+            updateDisplay();
+            updateProgress();
+        }
+
+        function prevSentence() {
+            while (state.currentIndex > 0) {
+                state.currentIndex--;
+                const word = state.words[state.currentIndex];
+                if (word.match(/[.!?]$/)) break;
+            }
+            updateDisplay();
+            updateProgress();
+        }
+
+        // Settings Controls
+        function updateWpm(value) {
+            state.wpm = parseInt(value);
+            document.getElementById('wpmValue').textContent = state.wpm;
+            document.getElementById('currentWpm').textContent = state.wpm;
+            
+            if (state.isPlaying) {
+                clearInterval(state.readerInterval);
+                startReading();
+            }
+        }
+
+        function setChunkSize(size) {
+            state.chunkSize = size;
+            document.querySelectorAll('.chunk-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', idx + 1 === size);
+            });
+        }
+
+        function updateFontSize(value) {
+            state.fontSize = parseInt(value);
+            document.getElementById('fontSizeValue').textContent = `${value}px`;
+            elements.readerDisplay.style.fontSize = `${value}px`;
+        }
+
+        function adjustFontSize(delta) {
+            const newSize = state.fontSize + delta;
+            if (newSize >= 20 && newSize <= 80) {
+                document.getElementById('fontSizeSlider').value = newSize;
+                updateFontSize(newSize);
+            }
+        }
+
+        function toggleOrp() {
+            state.orpEnabled = !state.orpEnabled;
+            document.getElementById('orpToggle').classList.toggle('active', state.orpEnabled);
+            if (!state.isPlaying) updateDisplay();
+        }
+
+        function toggleSmartPauses() {
+            state.smartPauses = !state.smartPauses;
+            document.getElementById('pauseToggle').classList.toggle('active', state.smartPauses);
+        }
+
+        function setMode(mode) {
+            state.mode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`).classList.add('active');
+            
+            if (mode === 'chunk' && state.chunkSize === 1) {
+                setChunkSize(2);
+            } else if (mode === 'rsvp') {
+                setChunkSize(1);
+            }
+        }
+
+        function setTheme(theme) {
+            state.theme = theme;
+            const display = elements.readerDisplay;
+            const panel = document.getElementById('readerPanel');
+            
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const themes = {
+                light: { bg: '#ffffff', text: '#1e293b', accent: '#f59e0b' },
+                dark: { bg: '#0f172a', text: '#f1f5f9', accent: '#f59e0b' },
+                sepia: { bg: '#fef3c7', text: '#451a03', accent: '#b45309' },
+                green: { bg: '#ecfdf5', text: '#064e3b', accent: '#059669' },
+                navy: { bg: '#1e1b4b', text: '#e0e7ff', accent: '#818cf8' }
+            };
+            
+            const t = themes[theme];
+            display.style.backgroundColor = t.bg;
+            display.style.color = t.text;
+            
+            document.getElementById('textColor').value = t.text;
+            document.getElementById('bgColor').value = t.bg;
+            document.getElementById('accentColor').value = t.accent;
+            
+            state.textColor = t.text;
+            state.bgColor = t.bg;
+            state.accentColor = t.accent;
+            
+            document.documentElement.style.setProperty('--accent', t.accent);
+            
+            if (theme === 'dark' || theme === 'navy') {
+                panel.classList.add('dark');
+            } else {
+                panel.classList.remove('dark');
+            }
+        }
+
+        function updateCustomColors() {
+            state.textColor = document.getElementById('textColor').value;
+            state.bgColor = document.getElementById('bgColor').value;
+            state.accentColor = document.getElementById('accentColor').value;
+            
+            elements.readerDisplay.style.backgroundColor = state.bgColor;
+            elements.readerDisplay.style.color = state.textColor;
+            document.documentElement.style.setProperty('--accent', state.accentColor);
+        }
+
+        function updateFontFamily(font) {
+            state.fontFamily = font;
+            elements.readerDisplay.style.fontFamily = font;
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Timer and Stats
+        function startTimer() {
+            state.timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('statTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (elapsed > 0) {
+                    const avgWpm = Math.round((state.totalWordsRead / elapsed) * 60);
+                    document.getElementById('statWpm').textContent = avgWpm;
+                    
+                    const efficiency = Math.min(100, Math.round((state.wpm / Math.max(avgWpm, 1)) * 100));
+                    document.getElementById('efficiency').textContent = efficiency;
+                }
+            }, 1000);
+        }
+
+        function updateStats() {
+            document.getElementById('statWords').textContent = state.words.length;
+        }
+    </script>
+</body>
+</html>
