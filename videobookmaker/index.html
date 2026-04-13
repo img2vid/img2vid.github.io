@@ -4,13 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Fast Flash Reader - Video Book Generator</title>
-    
-    <script src="../pdf.min.js"></script>
-    <script src="../mammoth.browser.min.js"></script>
-    <script src="../ffmpeg.js"></script>
-    <script src="../index.js"></script>
-    
-    <style>
+<style>
         * {
             margin: 0;
             padding: 0;
@@ -1178,17 +1172,27 @@
     </div>
 
     <canvas id="videoCanvas" class="hidden-canvas"></canvas>
-
     <script>
-        // Configure PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdf.worker.min.js';
+        'use strict';
 
-        // FFmpeg instance
-        let ffmpeg = null;
-        let ffmpegLoaded = false;
+        const LIBS = {
+            pdf: {
+                local: '../pdf.min.js',
+                cdn: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js',
+                workerLocal: '../pdf.worker.min.js',
+                workerCdn: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js'
+            },
+            mammoth: {
+                local: '../mammoth.browser.min.js',
+                cdn: 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'
+            },
+            ffmpeg: {
+                bundle: '../ffmpeg.min.js',
+                coreBase: '..'
+            }
+        };
 
-        // State Management
-        let state = {
+        const state = {
             words: [],
             currentIndex: 0,
             isPlaying: false,
@@ -1205,14 +1209,15 @@
             startTime: null,
             totalWordsRead: 0,
             timerInterval: null,
-            readerInterval: null,
+            readerTimeout: null,
             fontFamily: 'system-ui',
             currentFile: null,
             audioFile: null,
-            audioVolume: 0.5
+            audioVolume: 0.5,
+            audioDuration: 0,
+            lastDownloadUrl: null
         };
 
-        // DOM Elements
         const elements = {
             wordDisplay: document.getElementById('wordDisplay'),
             readerDisplay: document.getElementById('readerDisplay'),
@@ -1244,7 +1249,6 @@
             downloadSection: document.getElementById('downloadSection'),
             downloadLink: document.getElementById('downloadLink'),
             generateVideoBtn: document.getElementById('generateVideoBtn'),
-            // Audio elements
             audioInput: document.getElementById('audioInput'),
             audioSection: document.getElementById('audioSection'),
             audioDropZone: document.getElementById('audioDropZone'),
@@ -1254,7 +1258,6 @@
             volumeSlider: document.getElementById('volumeSlider'),
             volumeValue: document.getElementById('volumeValue'),
             loopAudio: document.getElementById('loopAudio'),
-            // Encoding progress elements
             encodingProgressContainer: document.getElementById('encodingProgressContainer'),
             encodingProgressBar: document.getElementById('encodingProgressBar'),
             encodingTimeRemaining: document.getElementById('encodingTimeRemaining'),
@@ -1262,142 +1265,235 @@
             stageIndicator: document.getElementById('stageIndicator'),
             stageRender: document.getElementById('stageRender'),
             stageEncode: document.getElementById('stageEncode'),
-            stageFinalize: document.getElementById('stageFinalize')
+            stageFinalize: document.getElementById('stageFinalize'),
+            fpsSlider: document.getElementById('fpsSlider'),
+            fpsValue: document.getElementById('fpsValue'),
+            wpmSlider: document.getElementById('wpmSlider'),
+            wpmValue: document.getElementById('wpmValue'),
+            fontSizeSlider: document.getElementById('fontSizeSlider'),
+            fontSizeValue: document.getElementById('fontSizeValue'),
+            textColor: document.getElementById('textColor'),
+            bgColor: document.getElementById('bgColor'),
+            accentColor: document.getElementById('accentColor'),
+            fontFamily: document.getElementById('fontFamily'),
+            modeRsvp: document.getElementById('modeRsvp'),
+            modeChunk: document.getElementById('modeChunk'),
+            modeHighlight: document.getElementById('modeHighlight'),
+            orpToggle: document.getElementById('orpToggle'),
+            pauseToggle: document.getElementById('pauseToggle'),
+            guideLines: document.querySelector('.guide-lines'),
+            readerPanel: document.getElementById('readerPanel')
         };
 
-        // Initialize
+        let pdfLibPromise = null;
+        let mammothLibPromise = null;
+        let ffmpegBundlePromise = null;
+        let ffmpegCoreUrlPromise = null;
+        let ffmpegWasmUrlPromise = null;
+        let ffmpegInstance = null;
+        let ffmpegLoaded = false;
+        let ffmpegProgressHandler = null;
+        let ffmpegLogHandler = null;
+
         document.addEventListener('DOMContentLoaded', () => {
-            setupEventListeners();
+            bindEvents();
+            syncUiFromState();
+            applyThemePreset('light', true);
             updateDisplay();
-            initFFmpeg();
+            updateProgress();
+            updateStats();
         });
 
-        async function initFFmpeg() {
-            try {
-                const { FFmpeg } = FFmpegWASM;
-                ffmpeg = new FFmpeg();
-                
-                ffmpeg.on('log', ({ message }) => {
-                    console.log('FFmpeg:', message);
-                });
-                
-            } catch (error) {
-                console.error('FFmpeg init error:', error);
-            }
-        }
-
-        // Helper function to safely delete file from FFmpeg FS
-        async function safeDeleteFile(filename) {
-            try {
-                await ffmpeg.deleteFile(filename);
-            } catch (e) {
-                // File might not exist, which is fine
-            }
-        }
-
-        // Helper function to safely write file to FFmpeg FS
-        async function safeWriteFile(filename, data) {
-            // Delete first to avoid FS error on overwrite
-            await safeDeleteFile(filename);
-            await ffmpeg.writeFile(filename, data);
-        }
-
-        // Helper function to fetch local files and force the correct MIME type
-        async function toBlobURL(url, mimeType) {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch ${url} - Status: ${response.status}`);
-            }
-            const buffer = await response.arrayBuffer();
-            const blob = new Blob([buffer], { type: mimeType });
-            return URL.createObjectURL(blob);
-        }
-
-        async function loadFFmpeg() {
-            if (ffmpegLoaded) return true;
-            
-            try {
-                elements.videoStatus.textContent = 'Loading FFmpeg...';
-                
-                const coreURL = await toBlobURL('../ffmpeg-core.js', 'text/javascript');
-                const wasmURL = await toBlobURL('../ffmpeg-core.wasm', 'application/wasm');
-                const workerURL = await toBlobURL('../814.ffmpeg.js', 'text/javascript');
-                
-                await ffmpeg.load({
-                    coreURL: coreURL,
-                    wasmURL: wasmURL,
-                    classWorkerURL: workerURL
-                });
-                
-                ffmpegLoaded = true;
-                return true;
-            } catch (error) {
-                console.error('Failed to load FFmpeg:', error);
-                showError('Failed to initialize video encoder. Make sure 814.ffmpeg.js is in your folder!');
-                return false;
-            }
-        }
-
-        function setupEventListeners() {
+        function bindEvents() {
             document.addEventListener('keydown', handleKeyboard);
-            
+            document.addEventListener('paste', handlePaste);
+
             elements.dropZone.addEventListener('click', () => elements.fileInput.click());
-            elements.fileInput.addEventListener('change', handleFileSelect);
-            
+            elements.fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
             elements.dropZone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 elements.dropZone.classList.add('dragover');
             });
-            
-            elements.dropZone.addEventListener('dragleave', () => {
-                elements.dropZone.classList.remove('dragover');
-            });
-            
+            elements.dropZone.addEventListener('dragleave', () => elements.dropZone.classList.remove('dragover'));
             elements.dropZone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 elements.dropZone.classList.remove('dragover');
                 handleFiles(e.dataTransfer.files);
             });
 
-            elements.audioInput.addEventListener('change', handleAudioSelect);
-            
+            elements.audioInput.addEventListener('change', (e) => handleAudioSelect(e.target.files));
             elements.audioDropZone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 elements.audioSection.style.borderColor = 'var(--primary)';
             });
-            
             elements.audioDropZone.addEventListener('dragleave', (e) => {
                 e.preventDefault();
-                if (!state.audioFile) {
-                    elements.audioSection.style.borderColor = '#cbd5e1';
-                } else {
-                    elements.audioSection.style.borderColor = 'var(--success)';
-                }
+                elements.audioSection.style.borderColor = state.audioFile ? 'var(--success)' : '#cbd5e1';
             });
-            
             elements.audioDropZone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 const files = e.dataTransfer.files;
-                if (files.length > 0 && files[0].type.startsWith('audio/')) {
-                    processAudioFile(files[0]);
+                if (files && files.length) {
+                    handleAudioSelect(files);
                 }
-            });
-
-            document.addEventListener('paste', (e) => {
-                if (e.target.tagName !== 'TEXTAREA') {
-                    const text = e.clipboardData.getData('text');
-                    if (text) {
-                        elements.textInput.value = text;
-                        loadText();
-                    }
-                }
+                elements.audioSection.style.borderColor = state.audioFile ? 'var(--success)' : '#cbd5e1';
             });
         }
 
+        function syncUiFromState() {
+            elements.wpmSlider.value = String(state.wpm);
+            elements.wpmValue.textContent = String(state.wpm);
+            document.getElementById('currentWpm').textContent = String(state.wpm);
+
+            elements.fontSizeSlider.value = String(state.fontSize);
+            elements.fontSizeValue.textContent = `${state.fontSize}px`;
+
+            elements.textColor.value = state.textColor;
+            elements.bgColor.value = state.bgColor;
+            elements.accentColor.value = state.accentColor;
+            elements.volumeSlider.value = String(Math.round(state.audioVolume * 100));
+            elements.volumeValue.textContent = `${Math.round(state.audioVolume * 100)}%`;
+
+            elements.fontFamily.value = state.fontFamily;
+
+            setModeButtons();
+            setToggleButtons();
+            updateReaderStyles();
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[src="${src}"]`);
+                if (existing && existing.dataset.loaded === 'true') {
+                    resolve(src);
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.onload = () => {
+                    script.dataset.loaded = 'true';
+                    resolve(src);
+                };
+                script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        async function loadScriptFromList(urls) {
+            let lastError = null;
+            for (const url of urls) {
+                try {
+                    return await loadScript(url);
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error('Failed to load script');
+        }
+
+        async function ensurePdfLib() {
+            if (window.pdfjsLib) return window.pdfjsLib;
+            if (!pdfLibPromise) {
+                pdfLibPromise = (async () => {
+                    await loadScriptFromList([LIBS.pdf.local, LIBS.pdf.cdn]);
+                    if (!window.pdfjsLib) {
+                        throw new Error('PDF.js did not initialize');
+                    }
+                    const workerSrc = await resolveFirstReachableUrl([LIBS.pdf.workerLocal, LIBS.pdf.workerCdn]);
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+                    return window.pdfjsLib;
+                })();
+            }
+            return pdfLibPromise;
+        }
+
+        async function ensureMammothLib() {
+            if (window.mammoth) return window.mammoth;
+            if (!mammothLibPromise) {
+                mammothLibPromise = (async () => {
+                    await loadScriptFromList([LIBS.mammoth.local, LIBS.mammoth.cdn]);
+                    if (!window.mammoth) {
+                        throw new Error('Mammoth did not initialize');
+                    }
+                    return window.mammoth;
+                })();
+            }
+            return mammothLibPromise;
+        }
+
+        async function ensureFfmpegBundle() {
+            if (window.FFmpeg || window.FFmpegWASM) return true;
+            if (!ffmpegBundlePromise) {
+                ffmpegBundlePromise = loadScript(LIBS.ffmpeg.bundle);
+            }
+            return ffmpegBundlePromise;
+        }
+
+        async function resolveFirstReachableUrl(urls) {
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+                    if (response.ok) return url;
+                } catch (e) {
+                    // continue
+                }
+            }
+            return urls[urls.length - 1];
+        }
+
+        async function toBlobURL(url, mimeType) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${url} (${response.status})`);
+            }
+            const buffer = await response.arrayBuffer();
+            const blob = new Blob([buffer], { type: mimeType });
+            return URL.createObjectURL(blob);
+        }
+
+        async function getFfmpegInstance() {
+            if (ffmpegLoaded && ffmpegInstance) return ffmpegInstance;
+
+            await ensureFfmpegBundle();
+
+            const ffmpegApi = window.FFmpegWASM || window.FFmpeg;
+            const FFmpegClass = ffmpegApi?.FFmpeg || ffmpegApi?.default?.FFmpeg || ffmpegApi;
+            if (typeof FFmpegClass !== 'function') {
+                throw new Error('FFmpeg library did not load correctly');
+            }
+
+            if (!ffmpegInstance) {
+                ffmpegInstance = new FFmpegClass();
+                ffmpegLogHandler = ({ message }) => console.log('FFmpeg:', message);
+                try {
+                    ffmpegInstance.on('log', ffmpegLogHandler);
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            if (!ffmpegLoaded) {
+                elements.videoStatus.textContent = 'Loading video engine...';
+                const baseURL = LIBS.ffmpeg.coreBase;
+                const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+                await ffmpegInstance.load({
+                    coreURL,
+                    wasmURL
+                });
+                ffmpegLoaded = true;
+            }
+
+            return ffmpegInstance;
+        }
+
         function handleKeyboard(e) {
-            if (e.target.tagName === 'TEXTAREA') return;
-            
-            switch(e.code) {
+            if (isEditableTarget(e.target)) return;
+
+            switch (e.code) {
                 case 'Space':
                     e.preventDefault();
                     togglePlay();
@@ -1408,90 +1504,55 @@
                 case 'ArrowUp':
                     e.preventDefault();
                     updateWpm(state.wpm + 50);
-                    document.getElementById('wpmSlider').value = state.wpm;
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
                     updateWpm(state.wpm - 50);
-                    document.getElementById('wpmSlider').value = state.wpm;
                     break;
                 case 'ArrowRight':
+                    e.preventDefault();
                     nextSentence();
                     break;
                 case 'ArrowLeft':
+                    e.preventDefault();
                     prevSentence();
                     break;
                 case 'KeyF':
+                    e.preventDefault();
                     toggleFullscreen();
                     break;
             }
         }
 
-        // Audio Handling
-        function handleAudioSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                processAudioFile(file);
+        function handlePaste(e) {
+            if (isEditableTarget(e.target)) return;
+            const text = e.clipboardData?.getData('text');
+            if (text) {
+                elements.textInput.value = text;
+                loadText();
             }
         }
 
-        function processAudioFile(file) {
-            if (!file.type.startsWith('audio/')) {
-                showError('Please select a valid audio file');
-                return;
-            }
-
-            state.audioFile = file;
-            elements.audioFileName.textContent = file.name;
-            
-            const audio = new Audio();
-            audio.src = URL.createObjectURL(file);
-            audio.onloadedmetadata = () => {
-                const minutes = Math.floor(audio.duration / 60);
-                const seconds = Math.floor(audio.duration % 60);
-                elements.audioDuration.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                URL.revokeObjectURL(audio.src);
-            };
-            
-            elements.audioSection.classList.add('has-audio');
-            elements.audioInfo.classList.add('visible');
-            elements.audioDropZone.style.display = 'none';
-        }
-
-        function removeAudio() {
-            state.audioFile = null;
-            elements.audioInput.value = '';
-            elements.audioSection.classList.remove('has-audio');
-            elements.audioInfo.classList.remove('visible');
-            elements.audioDropZone.style.display = 'block';
-            elements.audioSection.style.borderColor = '#cbd5e1';
-        }
-
-        function updateAudioVolume(value) {
-            state.audioVolume = value / 100;
-            elements.volumeValue.textContent = value + '%';
-        }
-
-        // File Handling
-        function handleFileSelect(e) {
-            handleFiles(e.target.files);
+        function isEditableTarget(target) {
+            if (!target) return false;
+            const tag = target.tagName ? target.tagName.toLowerCase() : '';
+            return tag === 'textarea' || tag === 'input' || tag === 'select' || target.isContentEditable;
         }
 
         async function handleFiles(files) {
-            if (files.length === 0) return;
-            
+            if (!files || files.length === 0) return;
+
             const file = files[0];
             state.currentFile = file;
-            
             showLoading(true);
             hideError();
-            
+
             try {
-                const extension = file.name.split('.').pop().toLowerCase();
+                const extension = (file.name.split('.').pop() || '').toLowerCase();
                 let text = '';
-                
+
                 if (extension === 'txt') {
-                    text = await readTextFile(file);
+                    text = await file.text();
                 } else if (extension === 'pdf') {
                     elements.loadingText.textContent = 'Extracting PDF text...';
                     text = await extractTextFromPDF(file);
@@ -1502,26 +1563,24 @@
                     elements.loadingText.textContent = 'Attempting to extract DOC text...';
                     try {
                         text = await extractTextFromDOCX(file);
-                    } catch (e) {
-                        text = await readTextFile(file);
+                    } catch (docError) {
+                        text = await file.text();
                     }
                 } else {
-                    throw new Error(`Unsupported file format: ${extension}`);
+                    throw new Error(`Unsupported file format: ${extension || 'unknown'}`);
                 }
-                
-                if (!text || text.trim().length === 0) {
-                    throw new Error('No text content found in file');
-                }
-                
+
                 text = cleanText(text);
-                
+
+                if (!text) {
+                    throw new Error('No readable text found in the file');
+                }
+
                 elements.textInput.value = text;
                 elements.fileName.textContent = file.name;
-                elements.wordCount.textContent = text.split(/\s+/).filter(w => w.length > 0).length;
+                elements.wordCount.textContent = countWords(text);
                 elements.fileInfo.classList.add('visible');
-                
                 loadText();
-                
             } catch (error) {
                 console.error('Error processing file:', error);
                 showError(`Error processing file: ${error.message}`);
@@ -1531,66 +1590,96 @@
             }
         }
 
-        function readTextFile(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = (e) => reject(new Error('Failed to read text file'));
-                reader.readAsText(file);
-            });
+        function handleAudioSelect(filesOrEvent) {
+            let file = null;
+            if (filesOrEvent && filesOrEvent.target && filesOrEvent.target.files) {
+                file = filesOrEvent.target.files[0];
+            } else if (filesOrEvent && filesOrEvent[0]) {
+                file = filesOrEvent[0];
+            }
+
+            if (!file) return;
+            processAudioFile(file);
         }
 
-        async function extractTextFromPDF(file) {
+        async function processAudioFile(file) {
+            if (!file.type.startsWith('audio/') && !/\.(mp3|wav|aac|ogg|m4a|flac)$/i.test(file.name)) {
+                showError('Please select a valid audio file');
+                return;
+            }
+
+            state.audioFile = file;
+            state.audioDuration = 0;
+            elements.audioFileName.textContent = file.name;
+            elements.audioInfo.classList.add('visible');
+            elements.audioDropZone.style.display = 'none';
+            elements.audioSection.classList.add('has-audio');
+
             try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdfData = new Uint8Array(arrayBuffer);
-                
-                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
-                const pdf = await loadingTask.promise;
-                
-                let fullText = '';
-                const numPages = pdf.numPages;
-                
-                for (let i = 1; i <= numPages; i++) {
-                    elements.loadingText.textContent = `Extracting PDF page ${i}/${numPages}...`;
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    fullText += pageText + '\n\n';
-                }
-                
-                return fullText.trim();
+                const audio = new Audio();
+                const url = URL.createObjectURL(file);
+                audio.src = url;
+                audio.onloadedmetadata = () => {
+                    state.audioDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
+                    elements.audioDuration.textContent = formatDuration(state.audioDuration);
+                    URL.revokeObjectURL(url);
+                };
+                audio.onerror = () => {
+                    elements.audioDuration.textContent = 'Unknown length';
+                    URL.revokeObjectURL(url);
+                };
             } catch (error) {
-                console.error('PDF extraction error:', error);
-                throw new Error(`PDF extraction failed: ${error.message}`);
+                elements.audioDuration.textContent = 'Unknown length';
             }
         }
 
+        function removeAudio() {
+            state.audioFile = null;
+            state.audioDuration = 0;
+            elements.audioInput.value = '';
+            elements.audioSection.classList.remove('has-audio');
+            elements.audioInfo.classList.remove('visible');
+            elements.audioDropZone.style.display = 'block';
+            elements.audioSection.style.borderColor = '#cbd5e1';
+        }
+
+        async function extractTextFromPDF(file) {
+            const pdfjsLib = await ensurePdfLib();
+            const pdfData = new Uint8Array(await file.arrayBuffer());
+            const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+            const pdf = await loadingTask.promise;
+
+            let fullText = '';
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                elements.loadingText.textContent = `Extracting PDF page ${pageNum}/${pdf.numPages}...`;
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map((item) => item.str).join(' ');
+                fullText += `${pageText}
+
+`;
+            }
+            return fullText.trim();
+        }
+
         async function extractTextFromDOCX(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                
-                reader.onload = async function(event) {
-                    try {
-                        const arrayBuffer = event.target.result;
-                        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-                        resolve(result.value);
-                    } catch (error) {
-                        reject(new Error(`DOCX extraction failed: ${error.message}`));
-                    }
-                };
-                
-                reader.onerror = () => reject(new Error('Failed to read DOCX file'));
-                reader.readAsArrayBuffer(file);
-            });
+            const mammoth = await ensureMammothLib();
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            return result.value || '';
         }
 
         function cleanText(text) {
-            return text
+            return String(text || '')
                 .replace(/\r\n/g, '\n')
                 .replace(/\n{3,}/g, '\n\n')
                 .replace(/[ \t]+/g, ' ')
+                .replace(/\s+\n/g, '\n')
                 .trim();
+        }
+
+        function countWords(text) {
+            return cleanText(text).split(/\s+/).filter(Boolean).length;
         }
 
         function showLoading(show) {
@@ -1598,136 +1687,186 @@
             elements.loadBtn.disabled = show;
         }
 
+        let errorTimer = null;
         function showError(message) {
             elements.errorMessage.textContent = message;
             elements.errorMessage.classList.add('visible');
-            setTimeout(() => {
-                elements.errorMessage.classList.remove('visible');
-            }, 5000);
+            clearTimeout(errorTimer);
+            errorTimer = setTimeout(() => elements.errorMessage.classList.remove('visible'), 6000);
         }
 
         function hideError() {
+            clearTimeout(errorTimer);
             elements.errorMessage.classList.remove('visible');
         }
 
-        // Text Processing
         function loadText() {
-            const text = elements.textInput.value.trim();
+            const text = cleanText(elements.textInput.value);
             if (!text) {
                 showError('Please enter some text to read');
                 return;
             }
-            
-            state.words = text.split(/\s+/).filter(w => w.length > 0);
+
+            stopPlayback();
+            state.words = text.split(/\s+/).filter(Boolean);
             state.currentIndex = 0;
             state.totalWordsRead = 0;
             state.startTime = null;
-            
+
+            elements.fileInfo.classList.toggle('visible', !!state.currentFile);
+            elements.wordCount.textContent = String(state.words.length);
+
             updateDisplay();
+            updateProgress();
             updateStats();
-            
-            if (!state.isPlaying) {
-                togglePlay();
-            }
+            togglePlay();
         }
 
         function clearText() {
-            elements.textInput.value = '';
+            stopPlayback();
             state.words = [];
             state.currentIndex = 0;
-            state.isPlaying = false;
+            state.totalWordsRead = 0;
+            state.startTime = null;
             state.currentFile = null;
-            clearInterval(state.readerInterval);
-            clearInterval(state.timerInterval);
+            elements.textInput.value = '';
             elements.fileInfo.classList.remove('visible');
             elements.downloadSection.style.display = 'none';
+            if (state.lastDownloadUrl) {
+                URL.revokeObjectURL(state.lastDownloadUrl);
+                state.lastDownloadUrl = null;
+            }
             updateDisplay();
+            updateProgress();
+            updateStats();
             updatePlayButton();
         }
 
-        // Reading Logic
+        function stopPlayback(keepState = true) {
+            clearTimeout(state.readerTimeout);
+            clearInterval(state.timerInterval);
+            state.readerTimeout = null;
+            state.timerInterval = null;
+            if (!keepState) {
+                state.isPlaying = false;
+            }
+            elements.pauseOverlay.classList.remove('visible');
+            elements.statusIndicator.classList.add('paused');
+            if (!state.words.length) {
+                elements.statusText.textContent = 'Ready';
+            }
+            updatePlayButton();
+        }
+
         function togglePlay() {
-            if (state.words.length === 0) {
+            if (!state.words.length) {
                 showError('No text loaded. Please paste text or upload a file first.');
                 return;
             }
-            
-            state.isPlaying = !state.isPlaying;
-            updatePlayButton();
-            
+
             if (state.isPlaying) {
-                if (state.currentIndex >= state.words.length) {
-                    state.currentIndex = 0;
-                }
-                if (!state.startTime) {
-                    state.startTime = Date.now();
-                    startTimer();
-                }
-                startReading();
-                elements.pauseOverlay.classList.remove('visible');
-                elements.statusIndicator.classList.remove('paused');
-                elements.statusText.textContent = 'Reading...';
-            } else {
-                clearInterval(state.readerInterval);
-                elements.pauseOverlay.classList.add('visible');
-                elements.statusIndicator.classList.add('paused');
+                stopPlayback();
+                state.isPlaying = false;
                 elements.statusText.textContent = 'Paused';
+                elements.pauseOverlay.classList.add('visible');
+                return;
             }
+
+            if (state.currentIndex >= state.words.length) {
+                state.currentIndex = 0;
+            }
+
+            state.isPlaying = true;
+            updatePlayButton();
+            elements.pauseOverlay.classList.remove('visible');
+            elements.statusIndicator.classList.remove('paused');
+            elements.statusText.textContent = 'Reading...';
+
+            if (!state.startTime) {
+                state.startTime = Date.now();
+                startTimer();
+            }
+
+            startReading();
         }
 
         function updatePlayButton() {
+            if (!elements.playBtn) return;
             elements.playBtn.innerHTML = state.isPlaying ? '⏸️ Pause' : '▶️ Resume';
         }
 
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            state.timerInterval = setInterval(() => {
+                if (!state.startTime) return;
+                const elapsed = Math.max(0, Math.floor((Date.now() - state.startTime) / 1000));
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('statTime').textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
+
+                const avgWpm = elapsed > 0 ? Math.round((state.totalWordsRead / elapsed) * 60) : 0;
+                document.getElementById('statWpm').textContent = String(avgWpm);
+                document.getElementById('efficiency').textContent = String(Math.min(100, Math.round((state.wpm / Math.max(avgWpm, 1)) * 100)));
+            }, 1000);
+        }
+
         function startReading() {
-            clearInterval(state.readerInterval);
-            
-            const msPerWord = 60000 / state.wpm;
-            
-            const readStep = () => {
+            clearTimeout(state.readerTimeout);
+
+            const runStep = () => {
+                if (!state.isPlaying) return;
+
                 if (state.currentIndex >= state.words.length) {
                     finishReading();
                     return;
                 }
-                
-                displayWords();
+
+                const chunk = state.words.slice(state.currentIndex, state.currentIndex + state.chunkSize);
+                displayWords(chunk);
                 updateProgress();
-                
-                let delay = msPerWord * state.chunkSize;
-                
-                if (state.smartPauses) {
-                    const currentWord = state.words[state.currentIndex];
-                    const lastChar = currentWord.slice(-1);
-                    
+
+                const wordsShown = chunk.length;
+                let delay = (60000 / state.wpm) * wordsShown;
+                if (state.smartPauses && chunk.length) {
+                    const lastWord = chunk[chunk.length - 1];
+                    const lastChar = lastWord.slice(-1);
                     if ('.!?'.includes(lastChar)) delay *= 2;
                     else if (',;:]'.includes(lastChar)) delay *= 1.5;
-                    
-                    if (currentWord.length > 8) delay *= 1.3;
+                    if (lastWord.length > 8) delay *= 1.3;
                 }
-                
-                state.currentIndex += state.chunkSize;
-                state.totalWordsRead += state.chunkSize;
-                
-                state.readerInterval = setTimeout(readStep, delay);
+
+                state.currentIndex += wordsShown;
+                state.totalWordsRead = Math.min(state.words.length, state.totalWordsRead + wordsShown);
+                state.readerTimeout = setTimeout(runStep, Math.max(120, delay));
             };
-            
-            readStep();
+
+            runStep();
         }
 
-        function displayWords() {
-            const wordsToShow = state.words.slice(state.currentIndex, state.currentIndex + state.chunkSize);
+        function displayWords(chunk = null) {
+            const wordsToShow = chunk || state.words.slice(state.currentIndex, state.currentIndex + state.chunkSize);
             const text = wordsToShow.join(' ');
-            
-            if (state.orpEnabled && state.chunkSize === 1 && text.length > 0) {
-                const word = text;
-                const orpIndex = Math.floor(word.length / 2);
-                const before = word.slice(0, orpIndex);
-                const orp = word[orpIndex];
-                const after = word.slice(orpIndex + 1);
-                
-                elements.wordDisplay.innerHTML = `
-                    <span>${escapeHtml(before)}</span><span class="orp-highlight">${escapeHtml(orp)}</span><span>${escapeHtml(after)}</span>
-                `;
+
+            if (!text) {
+                elements.wordDisplay.innerHTML = '<span style="color:#94a3b8;">Ready to read...</span>';
+                elements.guideLines.style.display = 'block';
+                return;
+            }
+
+            elements.readerDisplay.style.fontFamily = state.fontFamily;
+            elements.readerDisplay.style.fontSize = `${state.fontSize}px`;
+            elements.readerDisplay.style.color = state.textColor;
+            elements.readerDisplay.style.backgroundColor = state.bgColor;
+            document.documentElement.style.setProperty('--accent', state.accentColor);
+            elements.guideLines.style.display = state.mode === 'chunk' ? 'none' : 'block';
+
+            if (state.orpEnabled && state.chunkSize === 1 && wordsToShow[0] && state.mode !== 'chunk') {
+                const word = wordsToShow[0];
+                const idx = Math.max(0, Math.floor(word.length / 2));
+                const before = escapeHtml(word.slice(0, idx));
+                const orp = escapeHtml(word.slice(idx, idx + 1));
+                const after = escapeHtml(word.slice(idx + 1));
+                elements.wordDisplay.innerHTML = `<span>${before}</span><span class="orp-highlight">${orp}</span><span>${after}</span>`;
             } else {
                 elements.wordDisplay.textContent = text;
             }
@@ -1740,549 +1879,591 @@
         }
 
         function updateDisplay() {
-            if (state.words.length === 0) {
-                elements.wordDisplay.innerHTML = '<span style="color: #94a3b8;">Ready to read...</span>';
-                return;
-            }
             displayWords();
         }
 
         function updateProgress() {
-            const progress = (state.currentIndex / state.words.length) * 100;
+            const total = Math.max(1, state.words.length);
+            const progress = Math.min(100, (state.currentIndex / total) * 100);
             elements.progressFill.style.width = `${progress}%`;
-            
             elements.currentPosition.textContent = `${Math.min(state.currentIndex, state.words.length)} / ${state.words.length} words`;
-            
-            const remaining = state.words.length - state.currentIndex;
-            const minutes = Math.ceil(remaining / state.wpm);
-            const seconds = Math.floor((remaining % state.wpm) / state.wpm * 60);
-            elements.timeRemaining.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
-            
+
+            const remainingWords = Math.max(0, state.words.length - state.currentIndex);
+            const remainingSeconds = Math.max(0, Math.ceil((remainingWords / Math.max(state.wpm, 1)) * 60));
+            elements.timeRemaining.textContent = `${formatDuration(remainingSeconds)} remaining`;
+
             document.getElementById('statProgress').textContent = `${Math.round(progress)}%`;
-            document.getElementById('statWords').textContent = state.totalWordsRead;
+            document.getElementById('statWords').textContent = String(state.totalWordsRead);
+        }
+
+        function updateStats() {
+            document.getElementById('statWords').textContent = String(state.totalWordsRead);
+            document.getElementById('statProgress').textContent = state.words.length ? `${Math.round((state.currentIndex / state.words.length) * 100)}%` : '0%';
         }
 
         function finishReading() {
             state.isPlaying = false;
-            clearInterval(state.readerInterval);
+            clearTimeout(state.readerTimeout);
             clearInterval(state.timerInterval);
+            state.readerTimeout = null;
+            state.timerInterval = null;
             updatePlayButton();
             elements.statusIndicator.classList.add('paused');
             elements.statusText.textContent = 'Completed';
+            elements.pauseOverlay.classList.remove('visible');
             elements.wordDisplay.innerHTML = '<span style="color: var(--success);">✓ Reading Complete</span>';
+            updateProgress();
         }
 
         function resetReader() {
+            stopPlayback();
             state.isPlaying = false;
             state.currentIndex = 0;
-            clearInterval(state.readerInterval);
-            clearInterval(state.timerInterval);
-            updatePlayButton();
-            updateDisplay();
-            updateProgress();
+            state.totalWordsRead = 0;
+            state.startTime = null;
             elements.pauseOverlay.classList.remove('visible');
             elements.statusIndicator.classList.add('paused');
             elements.statusText.textContent = 'Ready';
+            updateDisplay();
+            updateProgress();
+            updatePlayButton();
         }
 
-        function seekTo(e) {
-            if (state.words.length === 0) return;
-            
+        function seekTo(event) {
+            if (!state.words.length) return;
             const rect = elements.progressBar.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const percentage = Math.max(0, Math.min(1, x / rect.width));
-            state.currentIndex = Math.floor(percentage * state.words.length);
-            updateDisplay();
+            const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+            const pct = x / rect.width;
+            state.currentIndex = Math.floor(pct * state.words.length);
+            if (state.isPlaying) {
+                clearTimeout(state.readerTimeout);
+                startReading();
+            } else {
+                updateDisplay();
+            }
             updateProgress();
         }
 
         function nextSentence() {
-            while (state.currentIndex < state.words.length) {
-                const word = state.words[state.currentIndex];
-                state.currentIndex++;
-                if (word.match(/[.!?]$/)) break;
+            if (!state.words.length) return;
+            let idx = Math.min(state.currentIndex + 1, state.words.length - 1);
+            while (idx < state.words.length - 1 && !/[.!?]$/.test(state.words[idx])) idx++;
+            state.currentIndex = Math.min(idx + 1, state.words.length);
+            if (state.isPlaying) {
+                clearTimeout(state.readerTimeout);
+                startReading();
             }
             updateDisplay();
             updateProgress();
         }
 
         function prevSentence() {
-            while (state.currentIndex > 0) {
-                state.currentIndex--;
-                const word = state.words[state.currentIndex];
-                if (word.match(/[.!?]$/)) break;
+            if (!state.words.length) return;
+            let idx = Math.max(0, state.currentIndex - 2);
+            while (idx > 0 && !/[.!?]$/.test(state.words[idx])) idx--;
+            state.currentIndex = Math.max(0, idx + 1);
+            if (state.isPlaying) {
+                clearTimeout(state.readerTimeout);
+                startReading();
             }
             updateDisplay();
             updateProgress();
         }
 
-        // Settings Controls
+        function setMode(mode) {
+            state.mode = mode;
+            setModeButtons();
+            updateDisplay();
+        }
+
+        function setModeButtons() {
+            const buttons = [
+                [elements.modeRsvp, 'rsvp'],
+                [elements.modeChunk, 'chunk'],
+                [elements.modeHighlight, 'highlight']
+            ];
+            buttons.forEach(([button, mode]) => {
+                if (button) button.classList.toggle('active', state.mode === mode);
+            });
+        }
+
         function updateWpm(value) {
-            state.wpm = parseInt(value);
-            document.getElementById('wpmValue').textContent = state.wpm;
-            document.getElementById('currentWpm').textContent = state.wpm;
-            
+            const wpm = Math.max(100, Math.min(1000, Number(value) || 300));
+            state.wpm = wpm;
+            elements.wpmSlider.value = String(wpm);
+            elements.wpmValue.textContent = String(wpm);
+            document.getElementById('currentWpm').textContent = String(wpm);
             if (state.isPlaying) {
-                clearInterval(state.readerInterval);
+                clearTimeout(state.readerTimeout);
+                startReading();
+            }
+            updateProgress();
+        }
+
+        function setChunkSize(size) {
+            state.chunkSize = Math.max(1, Math.min(4, Number(size) || 1));
+            document.querySelectorAll('.chunk-btn').forEach((button) => {
+                button.classList.toggle('active', Number(button.textContent) === state.chunkSize);
+            });
+            updateDisplay();
+            updateProgress();
+            if (state.isPlaying) {
+                clearTimeout(state.readerTimeout);
                 startReading();
             }
         }
 
-        function setChunkSize(size) {
-            state.chunkSize = size;
-            document.querySelectorAll('.chunk-btn').forEach((btn, idx) => {
-                btn.classList.toggle('active', idx + 1 === size);
-            });
-        }
-
         function updateFontSize(value) {
-            state.fontSize = parseInt(value);
-            document.getElementById('fontSizeValue').textContent = `${value}px`;
-            elements.readerDisplay.style.fontSize = `${value}px`;
+            const size = Math.max(20, Math.min(80, Number(value) || 48));
+            state.fontSize = size;
+            elements.fontSizeSlider.value = String(size);
+            elements.fontSizeValue.textContent = `${size}px`;
+            updateDisplay();
         }
 
         function adjustFontSize(delta) {
-            const newSize = state.fontSize + delta;
-            if (newSize >= 20 && newSize <= 80) {
-                document.getElementById('fontSizeSlider').value = newSize;
-                updateFontSize(newSize);
-            }
+            updateFontSize(state.fontSize + delta);
         }
 
         function toggleOrp() {
             state.orpEnabled = !state.orpEnabled;
-            document.getElementById('orpToggle').classList.toggle('active', state.orpEnabled);
-            if (!state.isPlaying) updateDisplay();
+            setToggleButtons();
+            updateDisplay();
         }
 
         function toggleSmartPauses() {
             state.smartPauses = !state.smartPauses;
-            document.getElementById('pauseToggle').classList.toggle('active', state.smartPauses);
+            setToggleButtons();
         }
 
-        function setMode(mode) {
-            state.mode = mode;
-            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`).classList.add('active');
-            
-            if (mode === 'chunk' && state.chunkSize === 1) {
-                setChunkSize(2);
-            } else if (mode === 'rsvp') {
-                setChunkSize(1);
-            }
+        function setToggleButtons() {
+            elements.orpToggle.classList.toggle('active', state.orpEnabled);
+            elements.pauseToggle.classList.toggle('active', state.smartPauses);
+        }
+
+        function applyThemePreset(theme, initial = false) {
+            const presets = {
+                light: { textColor: '#1e293b', bgColor: '#ffffff', accentColor: '#f59e0b' },
+                dark: { textColor: '#f8fafc', bgColor: '#0f172a', accentColor: '#f97316' },
+                sepia: { textColor: '#5b4636', bgColor: '#fef3c7', accentColor: '#b45309' },
+                green: { textColor: '#064e3b', bgColor: '#ecfdf5', accentColor: '#10b981' },
+                navy: { textColor: '#e0e7ff', bgColor: '#1e1b4b', accentColor: '#38bdf8' }
+            };
+
+            state.theme = theme;
+            const preset = presets[theme] || presets.light;
+            state.textColor = preset.textColor;
+            state.bgColor = preset.bgColor;
+            state.accentColor = preset.accentColor;
+
+            elements.textColor.value = state.textColor;
+            elements.bgColor.value = state.bgColor;
+            elements.accentColor.value = state.accentColor;
+
+            document.body.style.background = theme === 'dark' || theme === 'navy'
+                ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)'
+                : theme === 'sepia'
+                    ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+                    : theme === 'green'
+                        ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)'
+                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
+            const themeButtons = document.querySelectorAll('.theme-btn');
+            themeButtons.forEach((button) => button.classList.remove('active'));
+            const activeIndex = { light: 0, dark: 1, sepia: 2, green: 3, navy: 4 }[theme] ?? 0;
+            if (themeButtons[activeIndex]) themeButtons[activeIndex].classList.add('active');
+
+            updateReaderStyles();
+            if (!initial) updateDisplay();
         }
 
         function setTheme(theme) {
-            state.theme = theme;
-            const display = elements.readerDisplay;
-            const panel = document.getElementById('readerPanel');
-            
-            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            const themes = {
-                light: { bg: '#ffffff', text: '#1e293b', accent: '#f59e0b' },
-                dark: { bg: '#0f172a', text: '#f1f5f9', accent: '#f59e0b' },
-                sepia: { bg: '#fef3c7', text: '#451a03', accent: '#b45309' },
-                green: { bg: '#ecfdf5', text: '#064e3b', accent: '#059669' },
-                navy: { bg: '#1e1b4b', text: '#e0e7ff', accent: '#818cf8' }
-            };
-            
-            const t = themes[theme];
-            display.style.backgroundColor = t.bg;
-            display.style.color = t.text;
-            
-            document.getElementById('textColor').value = t.text;
-            document.getElementById('bgColor').value = t.bg;
-            document.getElementById('accentColor').value = t.accent;
-            
-            state.textColor = t.text;
-            state.bgColor = t.bg;
-            state.accentColor = t.accent;
-            
-            document.documentElement.style.setProperty('--accent', t.accent);
-            
-            if (theme === 'dark' || theme === 'navy') {
-                panel.classList.add('dark');
-            } else {
-                panel.classList.remove('dark');
-            }
+            applyThemePreset(theme);
         }
 
         function updateCustomColors() {
-            state.textColor = document.getElementById('textColor').value;
-            state.bgColor = document.getElementById('bgColor').value;
-            state.accentColor = document.getElementById('accentColor').value;
-            
+            state.textColor = elements.textColor.value;
+            state.bgColor = elements.bgColor.value;
+            state.accentColor = elements.accentColor.value;
+            state.theme = 'custom';
+            updateReaderStyles();
+            updateDisplay();
+        }
+
+        function updateReaderStyles() {
             elements.readerDisplay.style.backgroundColor = state.bgColor;
             elements.readerDisplay.style.color = state.textColor;
+            elements.readerDisplay.style.fontFamily = state.fontFamily;
+            elements.readerDisplay.style.fontSize = `${state.fontSize}px`;
             document.documentElement.style.setProperty('--accent', state.accentColor);
         }
 
         function updateFontFamily(font) {
             state.fontFamily = font;
-            elements.readerDisplay.style.fontFamily = font;
+            updateReaderStyles();
+            updateDisplay();
         }
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
+                document.documentElement.requestFullscreen().catch(() => {});
             } else {
-                document.exitFullscreen();
+                document.exitFullscreen().catch(() => {});
             }
         }
 
-        // Timer and Stats
-        function startTimer() {
-            state.timerInterval = setInterval(() => {
-                const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-                const minutes = Math.floor(elapsed / 60);
-                const seconds = elapsed % 60;
-                document.getElementById('statTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
-                if (elapsed > 0) {
-                    const avgWpm = Math.round((state.totalWordsRead / elapsed) * 60);
-                    document.getElementById('statWpm').textContent = avgWpm;
-                    
-                    const efficiency = Math.min(100, Math.round((state.wpm / Math.max(avgWpm, 1)) * 100));
-                    document.getElementById('efficiency').textContent = efficiency;
-                }
-            }, 1000);
+        function formatDuration(totalSeconds) {
+            const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+            const minutes = Math.floor(seconds / 60);
+            const rem = seconds % 60;
+            return `${minutes}:${String(rem).padStart(2, '0')}`;
         }
 
-        function updateStats() {
-            document.getElementById('statWords').textContent = state.words.length;
+        function isLowPowerDevice() {
+            const ua = navigator.userAgent || '';
+            const dm = navigator.deviceMemory || 0;
+            const cores = navigator.hardwareConcurrency || 0;
+            return /CrOS|Android|iPhone|iPad|Mobile/i.test(ua) || (dm && dm <= 4) || (cores && cores <= 4);
         }
 
-        // Video Generation with Audio Support and Encoding Progress
+        function clampResolution(width, height) {
+            if (isLowPowerDevice() && width * height > 1280 * 720) {
+                return { width: 1280, height: 720, downgraded: true };
+            }
+            return { width, height, downgraded: false };
+        }
+
+        async function canvasToJpegBytes(canvas, quality = 0.92) {
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob((value) => {
+                    if (value) resolve(value);
+                    else reject(new Error('Canvas export failed'));
+                }, 'image/jpeg', quality);
+            });
+            return new Uint8Array(await blob.arrayBuffer());
+        }
+
+        function setStage(stage, status) {
+            const map = {
+                render: elements.stageRender,
+                encode: elements.stageEncode,
+                finalize: elements.stageFinalize
+            };
+            const el = map[stage];
+            if (!el) return;
+            el.className = 'stage';
+            if (status === 'active') el.classList.add('active');
+            if (status === 'complete') el.classList.add('complete');
+        }
+
         async function generateVideo() {
-            if (state.words.length === 0) {
+            if (!state.words.length) {
                 showError('Please load text before generating video');
                 return;
             }
 
-            const loaded = await loadFFmpeg();
-            if (!loaded) return;
+            let ffmpeg;
+            try {
+                ffmpeg = await getFfmpegInstance();
+            } catch (error) {
+                console.error('FFmpeg init error:', error);
+                showError(`Video engine failed to load: ${error.message}`);
+                return;
+            }
 
-            const resolution = document.getElementById('videoResolution').value.split('x');
-            const width = parseInt(resolution[0]);
-            const height = parseInt(resolution[1]);
-            const fps = parseInt(document.getElementById('fpsSlider').value);
-            
+            const [rawWidth, rawHeight] = elements.fpsSlider ? document.getElementById('videoResolution').value.split('x').map(Number) : [1280, 720];
+            let width = rawWidth;
+            let height = rawHeight;
+            const fps = Number(elements.fpsSlider.value) || 30;
+            const resolution = clampResolution(width, height);
+            width = resolution.width;
+            height = resolution.height;
+
+            if (resolution.downgraded) {
+                showError('High resolution was reduced automatically for device compatibility.');
+            }
+
             elements.generateVideoBtn.disabled = true;
             elements.videoProgress.classList.add('active');
             elements.downloadSection.style.display = 'none';
             elements.encodingProgressContainer.classList.remove('active');
             elements.stageIndicator.style.display = 'flex';
-            
-            // Reset stages
-            updateStage('render', 'active');
-            updateStage('encode', 'pending');
-            updateStage('finalize', 'pending');
-            
-            let frameIndex = 0;
+            elements.progressTitle.textContent = 'Rendering Frames';
+            elements.videoStatus.textContent = 'Generating frames...';
+            elements.videoProgressBar.style.width = '0%';
+            elements.videoProgressBar.textContent = '0%';
+            elements.encodingProgressBar.style.width = '0%';
+            elements.encodingTimeRemaining.textContent = 'Calculating...';
+            elements.encodingDetails.textContent = 'Frame 0/0';
+            setStage('render', 'active');
+            setStage('encode', '');
+            setStage('finalize', '');
+
+            const canvas = elements.videoCanvas;
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', { alpha: false });
+
+            const msPerWord = 60000 / Math.max(1, state.wpm);
+            const framesPlan = [];
             let totalFrames = 0;
-            
-            try {
-                // Clean up any existing files first to prevent FS errors
-                elements.videoStatus.textContent = 'Cleaning up temporary files...';
-                
-                // Try to delete output file if it exists from previous run
-                await safeDeleteFile('output.mp4');
-                
-                // Setup canvas
-                const canvas = elements.videoCanvas;
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d', { alpha: false });
-                
-                // Calculate timing and total frames
-                const msPerWord = 60000 / state.wpm;
-                
-                // Calculate exact frame count considering pauses
-                const wordFrames = [];
-                
-                for (let i = 0; i < state.words.length; i += state.chunkSize) {
-                    const wordsToShow = state.words.slice(i, i + state.chunkSize);
-                    let duration = msPerWord * state.chunkSize;
-                    
-                    if (state.smartPauses) {
-                        const lastWord = wordsToShow[wordsToShow.length - 1];
-                        const lastChar = lastWord.slice(-1);
-                        if ('.!?'.includes(lastChar)) duration *= 2;
-                        else if (',;:]'.includes(lastChar)) duration *= 1.5;
-                        if (lastWord.length > 8) duration *= 1.3;
-                    }
-                    
-                    const numFrames = Math.max(1, Math.round((duration / 1000) * fps));
-                    wordFrames.push(numFrames);
-                    totalFrames += numFrames;
+
+            for (let i = 0; i < state.words.length; i += state.chunkSize) {
+                const chunk = state.words.slice(i, i + state.chunkSize);
+                let durationMs = msPerWord * chunk.length;
+                if (state.smartPauses && chunk.length) {
+                    const lastWord = chunk[chunk.length - 1];
+                    const lastChar = lastWord.slice(-1);
+                    if ('.!?'.includes(lastChar)) durationMs *= 2;
+                    else if (',;:]'.includes(lastChar)) durationMs *= 1.5;
+                    if (lastWord.length > 8) durationMs *= 1.3;
                 }
-                
-                elements.frameCount.textContent = '0 / ' + totalFrames;
-                elements.estSize.textContent = '~' + Math.round(totalFrames * width * height * 3 / 1024 / 1024 / 50) + ' MB';
-                
-                // Prepare font
-                const fontSize = Math.min(width / 10, height / 4);
-                const fontFamily = state.fontFamily === 'system-ui' ? 'Segoe UI, system-ui, sans-serif' : state.fontFamily;
-                
-                let encodingStartTime = null;
-                
-                // Setup FFmpeg progress listener for encoding stage
-                ffmpeg.on('progress', ({ progress, time }) => {
-                    if (elements.stageEncode.classList.contains('active')) {
-                        const percent = Math.min(100, Math.round(progress * 100));
-                        elements.encodingProgressBar.style.width = `${percent}%`;
-                        
-                        if (!encodingStartTime) encodingStartTime = Date.now();
-                        const elapsed = (Date.now() - encodingStartTime) / 1000;
-                        if (progress > 0 && elapsed > 0) {
-                            const totalEstimated = elapsed / progress;
-                            const remaining = Math.max(0, totalEstimated - elapsed);
-                            const mins = Math.floor(remaining / 60);
-                            const secs = Math.floor(remaining % 60);
-                            elements.encodingTimeRemaining.textContent = `${mins}m ${secs}s remaining`;
-                        }
-                        
-                        if (time) {
-                            const currentFrame = Math.floor(time * fps / 1000000);
-                            elements.encodingDetails.textContent = `Processing frame ${Math.min(currentFrame, totalFrames)}/${totalFrames}`;
-                        }
-                    }
-                });
-                
-                elements.progressTitle.textContent = 'Rendering Frames';
-                elements.videoStatus.textContent = 'Generating video frames...';
-                
-                // Generate frames with error handling for each write
-                for (let i = 0; i < state.words.length; i += state.chunkSize) {
-                    const wordsToShow = state.words.slice(i, i + state.chunkSize);
-                    const text = wordsToShow.join(' ');
-                    const numFrames = wordFrames[i / state.chunkSize];
-                    
-                    // Draw frame multiple times
-                    for (let f = 0; f < numFrames; f++) {
-                        // Background
-                        ctx.fillStyle = state.bgColor;
-                        ctx.fillRect(0, 0, width, height);
-                        
-                        // Draw guide lines if enabled
-                        if (state.mode === 'highlight' || state.mode === 'rsvp') {
-                            ctx.strokeStyle = state.accentColor + '40';
-                            ctx.lineWidth = 2;
-                            ctx.beginPath();
-                            ctx.moveTo(0, height / 2);
-                            ctx.lineTo(width, height / 2);
-                            ctx.stroke();
-                            
-                            ctx.beginPath();
-                            ctx.arc(width * 0.2, height / 2, 10, 0, Math.PI * 2);
-                            ctx.arc(width * 0.8, height / 2, 10, 0, Math.PI * 2);
-                            ctx.stroke();
-                        }
-                        
-                        // Text setup
-                        ctx.font = `bold ${fontSize}px ${fontFamily}`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        
-                        // Draw text with ORP highlighting
-                        if (state.orpEnabled && state.chunkSize === 1 && text.length > 0) {
-                            const orpIndex = Math.floor(text.length / 2);
-                            const before = text.slice(0, orpIndex);
-                            const orp = text[orpIndex];
-                            const after = text.slice(orpIndex + 1);
-                            
-                            const beforeWidth = ctx.measureText(before).width;
-                            const orpWidth = ctx.measureText(orp).width;
-                            const afterWidth = ctx.measureText(after).width;
-                            const totalWidth = beforeWidth + orpWidth + afterWidth;
-                            
-                            const centerX = width / 2;
-                            const startX = centerX - totalWidth / 2;
-                            
-                            ctx.fillStyle = state.textColor;
-                            ctx.fillText(before, startX + beforeWidth / 2, height / 2);
-                            
-                            ctx.fillStyle = state.accentColor;
-                            ctx.fillText(orp, startX + beforeWidth + orpWidth / 2, height / 2);
-                            
-                            ctx.strokeStyle = state.accentColor;
-                            ctx.lineWidth = 4;
-                            const orpY = height / 2 + fontSize * 0.4;
-                            ctx.beginPath();
-                            ctx.moveTo(startX + beforeWidth, orpY);
-                            ctx.lineTo(startX + beforeWidth + orpWidth, orpY);
-                            ctx.stroke();
-                            
-                            ctx.fillStyle = state.textColor;
-                            ctx.fillText(after, startX + beforeWidth + orpWidth + afterWidth / 2, height / 2);
-                        } else {
-                            ctx.fillStyle = state.textColor;
-                            ctx.fillText(text, width / 2, height / 2);
-                        }
-                        
-                        // Convert to image data and save to FFmpeg FS using safe write
-                        const imageData = canvas.toDataURL('image/jpeg', 0.92);
-                        const base64Data = imageData.replace(/^data:image\/jpeg;base64,/, '');
-                        const binaryData = atob(base64Data);
-                        const uint8Array = new Uint8Array(binaryData.length);
-                        for (let j = 0; j < binaryData.length; j++) {
-                            uint8Array[j] = binaryData.charCodeAt(j);
-                        }
-                        
-                        const frameFileName = `frame_${frameIndex.toString().padStart(6, '0')}.jpg`;
-                        
-                        // Use safe write to avoid FS errors on overwrite
-                        try {
-                            await safeWriteFile(frameFileName, uint8Array);
-                        } catch (writeError) {
-                            console.error(`Failed to write frame ${frameIndex}:`, writeError);
-                            throw new Error(`Failed to write frame ${frameIndex}: ${writeError.message}`);
-                        }
-                        
+                const frameCount = Math.max(1, Math.round((durationMs / 1000) * fps));
+                framesPlan.push({ chunk, frameCount });
+                totalFrames += frameCount;
+            }
+
+            const estimatedBytes = Math.round((totalFrames * width * height * 3) / (1024 * 1024 * 50));
+            elements.frameCount.textContent = `0 / ${totalFrames}`;
+            elements.estSize.textContent = `~${estimatedBytes} MB`;
+
+            const fontFamily = state.fontFamily === 'system-ui'
+                ? 'Segoe UI, system-ui, sans-serif'
+                : state.fontFamily;
+
+            let frameIndex = 0;
+            let startedEncodingAt = 0;
+
+            ffmpegProgressHandler = ({ progress, time }) => {
+                if (!elements.stageEncode.classList.contains('active')) return;
+                const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
+                elements.encodingProgressBar.style.width = `${percent}%`;
+                elements.encodingProgressBar.textContent = `${percent}%`;
+
+                if (!startedEncodingAt) startedEncodingAt = Date.now();
+                const elapsed = (Date.now() - startedEncodingAt) / 1000;
+                if (progress > 0 && elapsed > 0) {
+                    const remaining = Math.max(0, elapsed / progress - elapsed);
+                    elements.encodingTimeRemaining.textContent = `${formatDuration(remaining)} remaining`;
+                }
+
+                if (typeof time === 'number' && fps > 0) {
+                    const currentFrame = Math.min(totalFrames, Math.floor((time / 1000000) * fps));
+                    elements.encodingDetails.textContent = `Processing frame ${currentFrame}/${totalFrames}`;
+                }
+            };
+
+            try {
+                try { ffmpeg.off?.('progress', ffmpegProgressHandler); } catch (e) {}
+                ffmpeg.on('progress', ffmpegProgressHandler);
+
+                for (const { chunk, frameCount } of framesPlan) {
+                    drawFrame(ctx, width, height, chunk, fontFamily);
+                    const frameBytes = await canvasToJpegBytes(canvas, 0.9);
+
+                    for (let i = 0; i < frameCount; i++) {
+                        const frameName = `frame_${String(frameIndex).padStart(6, '0')}.jpg`;
+                        await ffmpeg.writeFile(frameName, frameBytes);
                         frameIndex++;
-                        
-                        // Update progress every 10 frames
-                        if (frameIndex % 10 === 0) {
+
+                        if (frameIndex % 10 === 0 || frameIndex === totalFrames) {
                             const progress = Math.round((frameIndex / totalFrames) * 100);
                             elements.videoProgressBar.style.width = `${progress}%`;
                             elements.videoProgressBar.textContent = `${progress}%`;
                             elements.frameCount.textContent = `${frameIndex} / ${totalFrames}`;
-                            await new Promise(r => setTimeout(r, 0));
+                            await nextTick();
                         }
                     }
                 }
-                
-                // Move to encoding stage
-                updateStage('render', 'complete');
-                updateStage('encode', 'active');
+
+                setStage('render', 'complete');
+                setStage('encode', 'active');
                 elements.progressTitle.textContent = 'Encoding Video';
-                elements.videoStatus.textContent = 'Compressing video with FFmpeg...';
+                elements.videoStatus.textContent = 'Compressing video...';
                 elements.encodingProgressContainer.classList.add('active');
                 elements.videoProgressBar.style.width = '100%';
                 elements.videoProgressBar.textContent = '100%';
-                
-                // Prepare FFmpeg arguments
-                const ffmpegArgs = [
-                    '-framerate', fps.toString(),
-                    '-i', 'frame_%06d.jpg',
+                elements.encodingDetails.textContent = `Frames ready: ${totalFrames}`;
+
+                const videoDuration = totalFrames / fps;
+                const ffmpegArgs = ['-framerate', String(fps), '-i', 'frame_%06d.jpg'];
+
+                let audioName = null;
+                let audioFilter = null;
+                if (state.audioFile) {
+                    audioName = `background_audio${getFileExtension(state.audioFile.name) || '.mp3'}`;
+                    const audioBytes = new Uint8Array(await state.audioFile.arrayBuffer());
+                    await ffmpeg.writeFile(audioName, audioBytes);
+
+                    if (!elements.loopAudio.checked && state.audioDuration > 0 && state.audioDuration < videoDuration) {
+                        audioFilter = `volume=${state.audioVolume},apad`;
+                    } else {
+                        audioFilter = `volume=${state.audioVolume}`;
+                    }
+
+                    if (elements.loopAudio.checked) {
+                        ffmpegArgs.push('-stream_loop', '-1');
+                    }
+                    ffmpegArgs.push('-i', audioName);
+                }
+
+                ffmpegArgs.push(
                     '-c:v', 'libx264',
                     '-pix_fmt', 'yuv420p',
                     '-crf', '23',
-                    '-preset', 'medium',
-                    '-movflags', '+faststart'
-                ];
+                    '-preset', 'veryfast'
+                );
 
-                // Handle audio if provided
-                let videoDuration = 0;
-                let audioFileName = null;
-                
                 if (state.audioFile) {
-                    elements.videoStatus.textContent = 'Processing audio & mixing...';
-                    
-                    // Create safe audio filename
-                    audioFileName = 'audio_' + Date.now() + getFileExtension(state.audioFile.name);
-                    
-                    // Read audio file
-                    const audioData = await state.audioFile.arrayBuffer();
-                    await safeWriteFile(audioFileName, new Uint8Array(audioData));
-                    
-                    videoDuration = totalFrames / fps;
-                    const loopAudio = elements.loopAudio.checked;
-                    
-                    ffmpegArgs.push('-i', audioFileName);
-                    
-                    if (loopAudio) {
-                        ffmpegArgs.push('-stream_loop', '-1');
-                    }
-                    
-                    ffmpegArgs.push(
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
-                        '-af', `volume=${state.audioVolume}`,
-                        '-shortest',
-                        '-t', videoDuration.toString()
-                    );
+                    ffmpegArgs.push('-c:a', 'aac', '-b:a', '128k', '-af', audioFilter);
                 }
-                
-                ffmpegArgs.push('output.mp4');
-                
-                // Run FFmpeg to create video
+
+                ffmpegArgs.push('-movflags', '+faststart', '-t', videoDuration.toFixed(3), 'output.mp4');
+
                 await ffmpeg.exec(ffmpegArgs);
-                
-                // Move to finalize stage
-                updateStage('encode', 'complete');
-                updateStage('finalize', 'active');
+
+                setStage('encode', 'complete');
+                setStage('finalize', 'active');
                 elements.progressTitle.textContent = 'Finalizing';
-                elements.videoStatus.textContent = 'Creating download file...';
+                elements.videoStatus.textContent = 'Creating download...';
                 elements.encodingProgressBar.style.width = '100%';
-                
-                // Read output file
+                elements.encodingProgressBar.textContent = '100%';
+
                 const data = await ffmpeg.readFile('output.mp4');
                 const blob = new Blob([data.buffer], { type: 'video/mp4' });
                 const url = URL.createObjectURL(blob);
-                
-                // Setup download
+
+                if (state.lastDownloadUrl) {
+                    URL.revokeObjectURL(state.lastDownloadUrl);
+                }
+                state.lastDownloadUrl = url;
+
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 elements.downloadLink.href = url;
                 elements.downloadLink.download = `flash-reader-${state.wpm}wpm-${timestamp}.mp4`;
                 elements.downloadSection.style.display = 'block';
-                
-                // Complete
-                updateStage('finalize', 'complete');
+
+                setStage('finalize', 'complete');
                 elements.progressTitle.textContent = 'Complete!';
                 elements.videoStatus.textContent = 'Video ready for download';
                 elements.encodingTimeRemaining.textContent = 'Done';
-                
             } catch (error) {
                 console.error('Video generation error:', error);
                 showError(`Video generation failed: ${error.message}`);
                 elements.videoStatus.textContent = 'Error occurred';
                 elements.progressTitle.textContent = 'Failed';
             } finally {
-                // Cleanup
                 elements.generateVideoBtn.disabled = false;
-                encodingStartTime = null;
-                ffmpeg.off('progress');
-                
-                // Clean up frame files
-                elements.videoStatus.textContent = 'Cleaning up...';
+                elements.encodingDetails.textContent = `Frame ${Math.min(frameIndex, totalFrames)}/${totalFrames}`;
+
+                try { ffmpeg.off?.('progress', ffmpegProgressHandler); } catch (e) {}
+                ffmpegProgressHandler = null;
+
                 for (let i = 0; i < frameIndex; i++) {
                     try {
-                        await safeDeleteFile(`frame_${i.toString().padStart(6, '0')}.jpg`);
+                        await ffmpeg.deleteFile(`frame_${String(i).padStart(6, '0')}.jpg`);
                     } catch (e) {}
                 }
-                
-                // Clean up audio file if exists
                 if (state.audioFile) {
-                    try {
-                        const audioFileName = 'audio_' + Date.now() + getFileExtension(state.audioFile.name);
-                        await safeDeleteFile(audioFileName);
-                    } catch (e) {}
+                    try { await ffmpeg.deleteFile(`background_audio${getFileExtension(state.audioFile.name) || '.mp3'}`); } catch (e) {}
                 }
-                
-                try {
-                    await safeDeleteFile('output.mp4');
-                } catch (e) {}
+                try { await ffmpeg.deleteFile('output.mp4'); } catch (e) {}
             }
         }
 
-        function getFileExtension(filename) {
-            return filename.substring(filename.lastIndexOf('.'));
+        function drawFrame(ctx, width, height, chunk, fontFamily) {
+            ctx.fillStyle = state.bgColor;
+            ctx.fillRect(0, 0, width, height);
+
+            if (state.mode !== 'chunk') {
+                ctx.save();
+                ctx.strokeStyle = hexToRgba(state.accentColor, 0.22);
+                ctx.lineWidth = Math.max(1, Math.round(height / 360));
+                ctx.beginPath();
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+
+                ctx.strokeStyle = hexToRgba(state.accentColor, 0.18);
+                ctx.beginPath();
+                ctx.arc(width * 0.2, height / 2, Math.max(6, Math.round(height * 0.01)), 0, Math.PI * 2);
+                ctx.arc(width * 0.8, height / 2, Math.max(6, Math.round(height * 0.01)), 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            const text = chunk.join(' ');
+            let fontSize = Math.max(18, Math.min(height / 4, width / 10, state.fontSize * (Math.min(width, height) / 720)));
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `700 ${fontSize}px ${fontFamily}`;
+
+            while (ctx.measureText(text).width > width * 0.82 && fontSize > 18) {
+                fontSize -= 2;
+                ctx.font = `700 ${fontSize}px ${fontFamily}`;
+            }
+
+            if (state.orpEnabled && chunk.length === 1 && state.mode !== 'chunk') {
+                const word = chunk[0];
+                const idx = Math.max(0, Math.floor(word.length / 2));
+                const before = word.slice(0, idx);
+                const orp = word.slice(idx, idx + 1);
+                const after = word.slice(idx + 1);
+
+                const beforeWidth = ctx.measureText(before).width;
+                const orpWidth = ctx.measureText(orp).width;
+                const afterWidth = ctx.measureText(after).width;
+                const totalWidth = beforeWidth + orpWidth + afterWidth;
+                const startX = (width / 2) - (totalWidth / 2);
+
+                ctx.fillStyle = state.textColor;
+                ctx.fillText(before, startX + beforeWidth / 2, height / 2);
+                ctx.fillStyle = state.accentColor;
+                ctx.fillText(orp, startX + beforeWidth + orpWidth / 2, height / 2);
+
+                ctx.strokeStyle = state.accentColor;
+                ctx.lineWidth = Math.max(2, Math.round(fontSize / 14));
+                ctx.beginPath();
+                ctx.moveTo(startX + beforeWidth, height / 2 + fontSize * 0.42);
+                ctx.lineTo(startX + beforeWidth + orpWidth, height / 2 + fontSize * 0.42);
+                ctx.stroke();
+
+                ctx.fillStyle = state.textColor;
+                ctx.fillText(after, startX + beforeWidth + orpWidth + afterWidth / 2, height / 2);
+            } else {
+                ctx.fillStyle = state.textColor;
+                ctx.fillText(text, width / 2, height / 2);
+            }
         }
 
-        function updateStage(stage, status) {
-            const stageEl = elements[`stage${stage.charAt(0).toUpperCase() + stage.slice(1)}`];
-            if (!stageEl) return;
-            
-            stageEl.className = 'stage';
-            if (status === 'active') {
-                stageEl.classList.add('active');
-            } else if (status === 'complete') {
-                stageEl.classList.add('complete');
-            }
+        function hexToRgba(hex, alpha) {
+            const clean = String(hex || '').replace('#', '');
+            const value = clean.length === 3
+                ? clean.split('').map((x) => x + x).join('')
+                : clean.padEnd(6, '0').slice(0, 6);
+            const num = parseInt(value, 16);
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function getFileExtension(name) {
+            const idx = String(name || '').lastIndexOf('.');
+            return idx >= 0 ? String(name).slice(idx).toLowerCase() : '';
+        }
+
+        function nextTick() {
+            return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        }
+
+        function setThemeButtonActive(theme) {
+            document.querySelectorAll('.theme-btn').forEach((button, index) => {
+                const map = ['light', 'dark', 'sepia', 'green', 'navy'];
+                button.classList.toggle('active', map[index] === theme);
+            });
         }
     </script>
+
 </body>
 </html>
