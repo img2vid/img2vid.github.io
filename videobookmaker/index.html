@@ -2249,23 +2249,24 @@
                 ffmpeg.on('progress', ffmpegProgressHandler);
 
                 for (const { chunk, frameCount } of framesPlan) {
-                    drawFrame(ctx, width, height, chunk, fontFamily);
-                    const frameBytes = await canvasToJpegBytes(canvas, 0.9);
+    drawFrame(ctx, width, height, chunk, fontFamily);
+    const frameBytes = await canvasToJpegBytes(canvas, 0.9);
 
-                    for (let i = 0; i < frameCount; i++) {
-                        const frameName = `frame_${String(frameIndex).padStart(6, '0')}.jpg`;
-                        await ffmpeg.writeFile(frameName, frameBytes);
-                        frameIndex++;
+    for (let i = 0; i < frameCount; i++) {
+        const frameName = `frame_${String(frameIndex).padStart(6, '0')}.jpg`;
+        // FIX: Add .slice() to prevent detachment errors
+        await ffmpeg.writeFile(frameName, frameBytes.slice());
+        frameIndex++;
 
-                        if (frameIndex % 10 === 0 || frameIndex === totalFrames) {
-                            const progress = Math.round((frameIndex / totalFrames) * 100);
-                            elements.videoProgressBar.style.width = `${progress}%`;
-                            elements.videoProgressBar.textContent = `${progress}%`;
-                            elements.frameCount.textContent = `${frameIndex} / ${totalFrames}`;
-                            await nextTick();
-                        }
-                    }
-                }
+        if (frameIndex % 10 === 0 || frameIndex === totalFrames) {
+            const progress = Math.round((frameIndex / totalFrames) * 100);
+            elements.videoProgressBar.style.width = `${progress}%`;
+            elements.videoProgressBar.textContent = `${progress}%`;
+            elements.frameCount.textContent = `${frameIndex} / ${totalFrames}`;
+            await nextTick();
+        }
+    }
+}
 
                 setStage('render', 'complete');
                 setStage('encode', 'active');
