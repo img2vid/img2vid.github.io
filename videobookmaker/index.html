@@ -166,6 +166,15 @@
             transform: translateY(-2px);
         }
 
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -720,6 +729,89 @@
             display: none;
         }
 
+        /* Audio upload styles */
+        .audio-section {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 12px;
+            border: 2px dashed #cbd5e1;
+        }
+
+        .audio-section.has-audio {
+            background: rgba(16, 185, 129, 0.05);
+            border-color: var(--success);
+        }
+
+        .audio-drop-zone {
+            text-align: center;
+            cursor: pointer;
+            padding: 12px;
+            transition: all 0.3s;
+        }
+
+        .audio-drop-zone:hover {
+            transform: scale(1.02);
+        }
+
+        .audio-info {
+            display: none;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .audio-info.visible {
+            display: block;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+
+        .volume-slider {
+            flex: 1;
+        }
+
+        .encoding-progress-container {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            display: none;
+        }
+
+        .encoding-progress-container.active {
+            display: block;
+        }
+
+        .stage-indicator {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+        }
+
+        .stage {
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #e2e8f0;
+            color: #64748b;
+            transition: all 0.3s;
+        }
+
+        .stage.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .stage.complete {
+            background: var(--success);
+            color: white;
+        }
+
         @media (max-width: 768px) {
             .reader-display {
                 font-size: 2rem;
@@ -786,9 +878,41 @@
                            oninput="document.getElementById('fpsValue').textContent = this.value">
                 </div>
 
-                <div class="control-group" style="margin-top: 12px; margin-bottom: 12px;">
-                    <div class="control-label">Background Audio (Optional)</div>
-                    <input type="file" id="audioInput" accept="audio/*" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; font-family: inherit;">
+                <!-- Audio Upload Section -->
+                <div class="audio-section" id="audioSection">
+                    <div class="audio-drop-zone" id="audioDropZone" onclick="document.getElementById('audioInput').click()">
+                        <div style="font-size: 1.5rem; margin-bottom: 4px;">🎵</div>
+                        <p style="font-size: 0.875rem; font-weight: 600;">Add Background Music</p>
+                        <p style="font-size: 0.75rem; color: #64748b;">MP3, WAV, AAC, OGG</p>
+                        <input type="file" id="audioInput" accept="audio/*" style="display: none;">
+                    </div>
+                    
+                    <div class="audio-info" id="audioInfo">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 1.25rem;">🎵</span>
+                            <div style="flex: 1; overflow: hidden;">
+                                <div class="file-name" id="audioFileName" style="font-size: 0.875rem;">audio.mp3</div>
+                                <div style="font-size: 0.75rem; color: #64748b;" id="audioDuration">0:00</div>
+                            </div>
+                            <button class="btn btn-danger" onclick="removeAudio()" style="padding: 4px 8px; font-size: 0.75rem;">✕</button>
+                        </div>
+                        
+                        <div class="control-group" style="margin: 0;">
+                            <div class="control-label" style="font-size: 0.75rem;">
+                                <span>Audio Volume</span>
+                                <span class="control-value" id="volumeValue">50%</span>
+                            </div>
+                            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="50" 
+                                   oninput="updateAudioVolume(this.value)">
+                        </div>
+
+                        <div style="margin-top: 8px; font-size: 0.75rem; color: #64748b;">
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="checkbox" id="loopAudio" checked style="cursor: pointer;">
+                                <span>Loop audio if longer than video</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <button class="btn btn-warning" onclick="generateVideo()" id="generateVideoBtn" style="width: 100%; margin-top: 12px;">
@@ -796,11 +920,35 @@
                 </button>
 
                 <div class="video-progress" id="videoProgress">
-                    <div style="font-weight: 600; margin-bottom: 4px;">Generating Video...</div>
-                    <div style="font-size: 0.875rem; color: #64748b;" id="videoStatus">Preparing...</div>
+                    <div style="font-weight: 600; margin-bottom: 4px;" id="progressTitle">Preparing...</div>
+                    
+                    <!-- Stage indicators -->
+                    <div class="stage-indicator" id="stageIndicator" style="display: none;">
+                        <span class="stage" id="stageRender">Render</span>
+                        <span class="stage" id="stageEncode">Encode</span>
+                        <span class="stage" id="stageFinalize">Finalize</span>
+                    </div>
+
+                    <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;" id="videoStatus">Initializing...</div>
+                    
                     <div class="progress-bar-container">
                         <div class="progress-bar-fill" id="videoProgressBar">0%</div>
                     </div>
+
+                    <!-- Encoding specific progress -->
+                    <div class="encoding-progress-container" id="encodingProgressContainer">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">
+                            <span>Encoding Progress</span>
+                            <span id="encodingTimeRemaining">Calculating...</span>
+                        </div>
+                        <div class="progress-bar-container" style="height: 8px;">
+                            <div class="progress-bar-fill" id="encodingProgressBar" style="background: linear-gradient(90deg, #10b981, #34d399); width: 0%;"></div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px; text-align: center;" id="encodingDetails">
+                            Frame 0/0
+                        </div>
+                    </div>
+                    
                     <div class="video-info">
                         <div>Frames: <span id="frameCount">0</span></div>
                         <div>Est. Size: <span id="estSize">-</span></div>
@@ -1060,7 +1208,8 @@
             readerInterval: null,
             fontFamily: 'system-ui',
             currentFile: null,
-            isEncoding: false // Used to trigger progress bar events correctly
+            audioFile: null,
+            audioVolume: 0.5
         };
 
         // DOM Elements
@@ -1089,12 +1238,31 @@
             videoProgress: document.getElementById('videoProgress'),
             videoProgressBar: document.getElementById('videoProgressBar'),
             videoStatus: document.getElementById('videoStatus'),
+            progressTitle: document.getElementById('progressTitle'),
             frameCount: document.getElementById('frameCount'),
             estSize: document.getElementById('estSize'),
             downloadSection: document.getElementById('downloadSection'),
             downloadLink: document.getElementById('downloadLink'),
             generateVideoBtn: document.getElementById('generateVideoBtn'),
-            audioInput: document.getElementById('audioInput')
+            // Audio elements
+            audioInput: document.getElementById('audioInput'),
+            audioSection: document.getElementById('audioSection'),
+            audioDropZone: document.getElementById('audioDropZone'),
+            audioInfo: document.getElementById('audioInfo'),
+            audioFileName: document.getElementById('audioFileName'),
+            audioDuration: document.getElementById('audioDuration'),
+            volumeSlider: document.getElementById('volumeSlider'),
+            volumeValue: document.getElementById('volumeValue'),
+            loopAudio: document.getElementById('loopAudio'),
+            // Encoding progress elements
+            encodingProgressContainer: document.getElementById('encodingProgressContainer'),
+            encodingProgressBar: document.getElementById('encodingProgressBar'),
+            encodingTimeRemaining: document.getElementById('encodingTimeRemaining'),
+            encodingDetails: document.getElementById('encodingDetails'),
+            stageIndicator: document.getElementById('stageIndicator'),
+            stageRender: document.getElementById('stageRender'),
+            stageEncode: document.getElementById('stageEncode'),
+            stageFinalize: document.getElementById('stageFinalize')
         };
 
         // Initialize
@@ -1113,17 +1281,20 @@
                     console.log('FFmpeg:', message);
                 });
                 
-                ffmpeg.on('progress', ({ progress, time }) => {
-                    if (state.isEncoding) {
-                        const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
-                        elements.videoProgressBar.style.width = `${percent}%`;
-                        elements.videoProgressBar.textContent = `${percent}%`;
-                    }
-                });
-                
             } catch (error) {
                 console.error('FFmpeg init error:', error);
             }
+        }
+
+        // Helper function to fetch local files and force the correct MIME type
+        async function toBlobURL(url, mimeType) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${url} - Status: ${response.status}`);
+            }
+            const buffer = await response.arrayBuffer();
+            const blob = new Blob([buffer], { type: mimeType });
+            return URL.createObjectURL(blob);
         }
 
         async function loadFFmpeg() {
@@ -1132,18 +1303,25 @@
             try {
                 elements.videoStatus.textContent = 'Loading FFmpeg...';
                 
-                // Relying on the proper python server for correct MIME types natively
+                // Fetch local files and convert them to Blobs with explicit MIME types
+                // This solves both worker path resolution and server MIME-type issues
+                const coreURL = await toBlobURL('ffmpeg-core.js', 'text/javascript');
+                const wasmURL = await toBlobURL('ffmpeg-core.wasm', 'application/wasm');
+                
+                // CRITICAL: Explicitly pass the missing worker chunk
+                const workerURL = await toBlobURL('814.ffmpeg.js', 'text/javascript');
+                
                 await ffmpeg.load({
-                    coreURL: './ffmpeg-core.js',
-                    wasmURL: './ffmpeg-core.wasm',
-                    classWorkerURL: './814.ffmpeg.js' // Explicit worker path fix for webpack chunk error
+                    coreURL: coreURL,
+                    wasmURL: wasmURL,
+                    classWorkerURL: workerURL // Prevents the internal Webpack chunking crash
                 });
                 
                 ffmpegLoaded = true;
                 return true;
             } catch (error) {
                 console.error('Failed to load FFmpeg:', error);
-                showError('Failed to initialize video encoder. Please ensure your Python server is running the updated script.');
+                showError('Failed to initialize video encoder. Make sure 814.ffmpeg.js is in your folder!');
                 return false;
             }
         }
@@ -1169,6 +1347,31 @@
                 e.preventDefault();
                 elements.dropZone.classList.remove('dragover');
                 handleFiles(e.dataTransfer.files);
+            });
+
+            // Audio handling
+            elements.audioInput.addEventListener('change', handleAudioSelect);
+            
+            elements.audioDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                elements.audioSection.style.borderColor = 'var(--primary)';
+            });
+            
+            elements.audioDropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                if (!state.audioFile) {
+                    elements.audioSection.style.borderColor = '#cbd5e1';
+                } else {
+                    elements.audioSection.style.borderColor = 'var(--success)';
+                }
+            });
+            
+            elements.audioDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith('audio/')) {
+                    processAudioFile(files[0]);
+                }
             });
 
             // Paste handling
@@ -1214,6 +1417,52 @@
                     toggleFullscreen();
                     break;
             }
+        }
+
+        // Audio Handling
+        function handleAudioSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processAudioFile(file);
+            }
+        }
+
+        function processAudioFile(file) {
+            if (!file.type.startsWith('audio/')) {
+                showError('Please select a valid audio file');
+                return;
+            }
+
+            state.audioFile = file;
+            elements.audioFileName.textContent = file.name;
+            
+            // Get audio duration
+            const audio = new Audio();
+            audio.src = URL.createObjectURL(file);
+            audio.onloadedmetadata = () => {
+                const minutes = Math.floor(audio.duration / 60);
+                const seconds = Math.floor(audio.duration % 60);
+                elements.audioDuration.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                URL.revokeObjectURL(audio.src);
+            };
+            
+            elements.audioSection.classList.add('has-audio');
+            elements.audioInfo.classList.add('visible');
+            elements.audioDropZone.style.display = 'none';
+        }
+
+        function removeAudio() {
+            state.audioFile = null;
+            elements.audioInput.value = '';
+            elements.audioSection.classList.remove('has-audio');
+            elements.audioInfo.classList.remove('visible');
+            elements.audioDropZone.style.display = 'block';
+            elements.audioSection.style.borderColor = '#cbd5e1';
+        }
+
+        function updateAudioVolume(value) {
+            state.audioVolume = value / 100;
+            elements.volumeValue.textContent = value + '%';
         }
 
         // File Handling
@@ -1698,7 +1947,7 @@
             document.getElementById('statWords').textContent = state.words.length;
         }
 
-        // Video Generation
+        // Video Generation with Audio Support and Encoding Progress
         async function generateVideo() {
             if (state.words.length === 0) {
                 showError('Please load text before generating video');
@@ -1713,56 +1962,36 @@
             const height = parseInt(resolution[1]);
             const fps = parseInt(document.getElementById('fpsSlider').value);
             
-            // Check for audio file
-            const audioFile = elements.audioInput.files[0];
-            let hasAudio = false;
-            let audioExt = '';
-            
             elements.generateVideoBtn.disabled = true;
             elements.videoProgress.classList.add('active');
             elements.downloadSection.style.display = 'none';
+            elements.encodingProgressContainer.classList.remove('active');
+            elements.stageIndicator.style.display = 'flex';
+            
+            // Reset stages
+            updateStage('render', 'active');
+            updateStage('encode', 'pending');
+            updateStage('finalize', 'pending');
             
             try {
-                // Load audio file into FFmpeg if present
-                if (audioFile) {
-                    elements.videoStatus.textContent = 'Loading audio...';
-                    audioExt = audioFile.name.split('.').pop().toLowerCase();
-                    const arrayBuffer = await audioFile.arrayBuffer();
-                    const uint8Array = new Uint8Array(arrayBuffer);
-                    await ffmpeg.writeFile(`bg_music.${audioExt}`, uint8Array);
-                    hasAudio = true;
-                }
-
                 // Setup canvas
                 const canvas = elements.videoCanvas;
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d', { alpha: false });
                 
-                // Calculate timing
+                // Calculate timing and total frames
                 const msPerWord = 60000 / state.wpm;
                 const framesPerWord = Math.ceil((msPerWord / 1000) * fps);
-                const totalFrames = Math.ceil((state.words.length / state.chunkSize) * framesPerWord * 1.5); // Buffer for pauses
                 
-                elements.frameCount.textContent = '0 / ' + totalFrames;
-                elements.estSize.textContent = '~' + Math.round(totalFrames * width * height * 3 / 1024 / 1024 / 50) + ' MB';
+                // Calculate exact frame count considering pauses
+                let totalFrames = 0;
+                const wordFrames = [];
                 
-                // Prepare font
-                const fontSize = Math.min(width / 10, height / 4);
-                const fontFamily = state.fontFamily === 'system-ui' ? 'Segoe UI, system-ui, sans-serif' : state.fontFamily;
-                
-                let frameIndex = 0;
-                
-                // PHASE 1: Rendering
-                elements.videoStatus.textContent = 'Phase 1/2: Rendering frames...';
-                
-                // Generate frames
                 for (let i = 0; i < state.words.length; i += state.chunkSize) {
                     const wordsToShow = state.words.slice(i, i + state.chunkSize);
-                    const text = wordsToShow.join(' ');
-                    
-                    // Calculate duration for this word/group
                     let duration = msPerWord * state.chunkSize;
+                    
                     if (state.smartPauses) {
                         const lastWord = wordsToShow[wordsToShow.length - 1];
                         const lastChar = lastWord.slice(-1);
@@ -1772,6 +2001,53 @@
                     }
                     
                     const numFrames = Math.max(1, Math.round((duration / 1000) * fps));
+                    wordFrames.push(numFrames);
+                    totalFrames += numFrames;
+                }
+                
+                elements.frameCount.textContent = '0 / ' + totalFrames;
+                elements.estSize.textContent = '~' + Math.round(totalFrames * width * height * 3 / 1024 / 1024 / 50) + ' MB';
+                
+                // Prepare font
+                const fontSize = Math.min(width / 10, height / 4);
+                const fontFamily = state.fontFamily === 'system-ui' ? 'Segoe UI, system-ui, sans-serif' : state.fontFamily;
+                
+                let frameIndex = 0;
+                let encodingStartTime = null;
+                
+                // Setup FFmpeg progress listener for encoding stage
+                ffmpeg.on('progress', ({ progress, time }) => {
+                    if (elements.stageEncode.classList.contains('active')) {
+                        const percent = Math.min(100, Math.round(progress * 100));
+                        elements.encodingProgressBar.style.width = `${percent}%`;
+                        
+                        // Calculate time remaining
+                        if (!encodingStartTime) encodingStartTime = Date.now();
+                        const elapsed = (Date.now() - encodingStartTime) / 1000;
+                        if (progress > 0 && elapsed > 0) {
+                            const totalEstimated = elapsed / progress;
+                            const remaining = Math.max(0, totalEstimated - elapsed);
+                            const mins = Math.floor(remaining / 60);
+                            const secs = Math.floor(remaining % 60);
+                            elements.encodingTimeRemaining.textContent = `${mins}m ${secs}s remaining`;
+                        }
+                        
+                        // Update frame details if available in log
+                        if (time) {
+                            const currentFrame = Math.floor(time * fps / 1000000); // time is in microseconds typically
+                            elements.encodingDetails.textContent = `Processing frame ${Math.min(currentFrame, totalFrames)}/${totalFrames}`;
+                        }
+                    }
+                });
+                
+                elements.progressTitle.textContent = 'Rendering Frames';
+                elements.videoStatus.textContent = 'Generating video frames...';
+                
+                // Generate frames
+                for (let i = 0; i < state.words.length; i += state.chunkSize) {
+                    const wordsToShow = state.words.slice(i, i + state.chunkSize);
+                    const text = wordsToShow.join(' ');
+                    const numFrames = wordFrames[i / state.chunkSize];
                     
                     // Draw frame multiple times
                     for (let f = 0; f < numFrames; f++) {
@@ -1854,7 +2130,7 @@
                         
                         // Update progress every 10 frames
                         if (frameIndex % 10 === 0) {
-                            const progress = Math.round((i / state.words.length) * 100);
+                            const progress = Math.round((frameIndex / totalFrames) * 100);
                             elements.videoProgressBar.style.width = `${progress}%`;
                             elements.videoProgressBar.textContent = `${progress}%`;
                             elements.frameCount.textContent = `${frameIndex} / ${totalFrames}`;
@@ -1865,41 +2141,68 @@
                     }
                 }
                 
-                // PHASE 2: Encoding
-                state.isEncoding = true;
-                elements.videoStatus.textContent = 'Phase 2/2: Encoding video...';
-                elements.videoProgressBar.style.width = '0%';
-                elements.videoProgressBar.textContent = '0%';
+                // Move to encoding stage
+                updateStage('render', 'complete');
+                updateStage('encode', 'active');
+                elements.progressTitle.textContent = 'Encoding Video';
+                elements.videoStatus.textContent = 'Compressing video with FFmpeg...';
+                elements.encodingProgressContainer.classList.add('active');
+                elements.videoProgressBar.style.width = '100%';
+                elements.videoProgressBar.textContent = '100%';
                 
-                // Build dynamic FFmpeg command arguments
-                let execArgs = [
+                // Prepare FFmpeg arguments
+                const ffmpegArgs = [
                     '-framerate', fps.toString(),
-                    '-i', 'frame_%06d.jpg'
-                ];
-
-                // Inject audio loop flag if audio exists
-                if (hasAudio) {
-                    execArgs.push('-stream_loop', '-1', '-i', `bg_music.${audioExt}`);
-                }
-
-                // Standard video encoding flags
-                execArgs.push(
+                    '-i', 'frame_%06d.jpg',
                     '-c:v', 'libx264',
                     '-pix_fmt', 'yuv420p',
                     '-crf', '23',
-                    '-preset', 'ultrafast'
-                );
+                    '-preset', 'medium',
+                    '-movflags', '+faststart'
+                ];
 
-                // Map audio format to AAC and cut it off exactly when the video ends
-                if (hasAudio) {
-                    execArgs.push('-c:a', 'aac', '-b:a', '128k', '-shortest');
+                // Handle audio if provided
+                let videoDuration = 0;
+                if (state.audioFile) {
+                    elements.videoStatus.textContent = 'Processing audio & mixing...';
+                    
+                    // Read audio file
+                    const audioData = await state.audioFile.arrayBuffer();
+                    await ffmpeg.writeFile('background_audio' + getFileExtension(state.audioFile.name), new Uint8Array(audioData));
+                    
+                    // Calculate video duration in seconds
+                    videoDuration = totalFrames / fps;
+                    const loopAudio = elements.loopAudio.checked;
+                    
+                    // Add audio input and mixing parameters
+                    ffmpegArgs.push('-i', 'background_audio' + getFileExtension(state.audioFile.name));
+                    
+                    if (loopAudio) {
+                        // Loop audio to match video length
+                        ffmpegArgs.push('-stream_loop', '-1');
+                    }
+                    
+                    // Audio codec and mixing
+                    ffmpegArgs.push(
+                        '-c:a', 'aac',
+                        '-b:a', '128k',
+                        '-af', `volume=${state.audioVolume}`,
+                        '-shortest', // Ensure output ends when shortest input ends
+                        '-t', videoDuration.toString() // Explicitly set duration
+                    );
                 }
-
-                execArgs.push('-movflags', '+faststart', 'output.mp4');
+                
+                ffmpegArgs.push('output.mp4');
                 
                 // Run FFmpeg to create video
-                await ffmpeg.exec(execArgs);
-                state.isEncoding = false;
+                await ffmpeg.exec(ffmpegArgs);
+                
+                // Move to finalize stage
+                updateStage('encode', 'complete');
+                updateStage('finalize', 'active');
+                elements.progressTitle.textContent = 'Finalizing';
+                elements.videoStatus.textContent = 'Creating download file...';
+                elements.encodingProgressBar.style.width = '100%';
                 
                 // Read output file
                 const data = await ffmpeg.readFile('output.mp4');
@@ -1912,9 +2215,11 @@
                 elements.downloadLink.download = `flash-reader-${state.wpm}wpm-${timestamp}.mp4`;
                 elements.downloadSection.style.display = 'block';
                 
-                elements.videoStatus.textContent = 'Complete!';
-                elements.videoProgressBar.style.width = '100%';
-                elements.videoProgressBar.textContent = '100%';
+                // Complete
+                updateStage('finalize', 'complete');
+                elements.progressTitle.textContent = 'Complete!';
+                elements.videoStatus.textContent = 'Video ready for download';
+                elements.encodingTimeRemaining.textContent = 'Done';
                 
                 // Cleanup frames from memory
                 for (let i = 0; i < frameIndex; i++) {
@@ -1922,17 +2227,44 @@
                         await ffmpeg.deleteFile(`frame_${i.toString().padStart(6, '0')}.jpg`);
                     } catch (e) {}
                 }
-                if (hasAudio) {
-                    try { await ffmpeg.deleteFile(`bg_music.${audioExt}`); } catch(e) {}
+                
+                // Cleanup audio file if exists
+                if (state.audioFile) {
+                    try {
+                        await ffmpeg.deleteFile('background_audio' + getFileExtension(state.audioFile.name));
+                    } catch (e) {}
                 }
                 
+                try {
+                    await ffmpeg.deleteFile('output.mp4');
+                } catch (e) {}
+                
             } catch (error) {
-                state.isEncoding = false;
                 console.error('Video generation error:', error);
                 showError(`Video generation failed: ${error.message}`);
-                elements.videoStatus.textContent = 'Error';
+                elements.videoStatus.textContent = 'Error occurred';
+                elements.progressTitle.textContent = 'Failed';
             } finally {
                 elements.generateVideoBtn.disabled = false;
+                encodingStartTime = null;
+                // Remove progress listener to avoid memory leaks
+                ffmpeg.off('progress');
+            }
+        }
+
+        function getFileExtension(filename) {
+            return filename.substring(filename.lastIndexOf('.'));
+        }
+
+        function updateStage(stage, status) {
+            const stageEl = elements[`stage${stage.charAt(0).toUpperCase() + stage.slice(1)}`];
+            if (!stageEl) return;
+            
+            stageEl.className = 'stage';
+            if (status === 'active') {
+                stageEl.classList.add('active');
+            } else if (status === 'complete') {
+                stageEl.classList.add('complete');
             }
         }
     </script>
