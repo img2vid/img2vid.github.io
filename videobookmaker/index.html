@@ -1305,11 +1305,11 @@
                 
                 // Fetch local files and convert them to Blobs with explicit MIME types
                 // This solves both worker path resolution and server MIME-type issues
-                const coreURL = await toBlobURL('ffmpeg-core.js', 'text/javascript');
-                const wasmURL = await toBlobURL('ffmpeg-core.wasm', 'application/wasm');
+                const coreURL = await toBlobURL('../ffmpeg-core.js', 'text/javascript');
+                const wasmURL = await toBlobURL('../ffmpeg-core.wasm', 'application/wasm');
                 
                 // CRITICAL: Explicitly pass the missing worker chunk
-                const workerURL = await toBlobURL('814.ffmpeg.js', 'text/javascript');
+                const workerURL = await toBlobURL('../814.ffmpeg.js', 'text/javascript');
                 
                 await ffmpeg.load({
                     coreURL: coreURL,
