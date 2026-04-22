@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF to All Formats Converter</title>
+<style>
+:root {
+  --bg: #0b1021;
+  --surface: rgba(255,255,255,0.06);
+  --surface-hover: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.12);
+  --primary: #6366f1;
+  --accent: #22d3ee;
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --success: #34d399;
+  --error: #f87171;
+  --radius: 18px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: radial-gradient(1200px 800px at 20% 10%, #1e1b4b 0%, transparent 60%),
+              radial-gradient(900px 600px at 80% 90%, #134e4a 0%, transparent 50%),
+              var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+header { text-align: center; margin-bottom: 8px; }
+header h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #a5b4fc 0%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+header p { color: var(--text-dim); margin-top: 6px; font-size: 1.05rem; }
+
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.drop-zone {
+  border: 2px dashed rgba(99,102,241,0.35);
+  border-radius: var(--radius);
+  padding: 60px 20px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all .3s ease;
+}
+.drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.08), transparent 70%);
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.drop-zone:hover, .drop-zone.active {
+  border-color: var(--accent);
+  background: rgba(34,211,238,0.04);
+  transform: translateY(-2px);
+}
+.drop-zone:hover::before, .drop-zone.active::before { opacity: 1; }
+.drop-zone .icon {
+  width: 64px; height: 64px; margin: 0 auto 16px;
+  color: var(--primary);
+}
+.drop-zone h3 { font-size: 1.25rem; font-weight: 600; }
+.drop-zone p { color: var(--text-dim); margin-top: 6px; font-size: 0.95rem; }
+.drop-zone input { display: none; }
+
+.file-info {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.file-info .meta { display: flex; align-items: center; gap: 14px; }
+.file-info .thumb {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: grid; place-items: center; font-weight: 700; color: white; font-size: 1.1rem;
+}
+.file-info .name { font-weight: 600; font-size: 1.1rem; }
+.file-info .detail { color: var(--text-dim); font-size: 0.9rem; margin-top: 2px; }
+
+.formats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+.format-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all .2s ease;
+  position: relative;
+}
+.format-card:hover { background: var(--surface-hover); transform: translateY(-3px); }
+.format-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(34,211,238,0.15), 0 10px 30px rgba(0,0,0,0.2);
+}
+.format-card .f-icon {
+  width: 36px; height: 36px; margin: 0 auto 10px;
+  color: var(--text-dim);
+  transition: color .2s ease;
+}
+.format-card.selected .f-icon { color: var(--accent); }
+.format-card .f-name { font-weight: 600; font-size: 0.95rem; }
+.format-card .f-desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+.actions { display: flex; justify-content: center; margin-top: 10px; }
+button.primary {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: white; border: none; padding: 14px 36px; border-radius: 12px;
+  font-weight: 700; font-size: 1rem; cursor: pointer;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+button.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(99,102,241,0.45); }
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+
+.progress-wrap { margin-top: 6px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-dim); margin-bottom: 8px; }
+.progress-track {
+  height: 10px; background: rgba(255,255,255,0.08); border-radius: 5px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 5px;
+  transition: width .3s ease;
+  box-shadow: 0 0 10px rgba(99,102,241,0.4);
+}
+
+.result-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.result-card .info { display: flex; flex-direction: column; gap: 4px; }
+.result-card .r-name { font-weight: 700; font-size: 1.1rem; }
+.result-card .r-size { color: var(--text-dim); font-size: 0.9rem; }
+
+.hidden { display: none !important; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 14px 20px; border-radius: 12px; font-weight: 500;
+  background: var(--surface); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); color: var(--text);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  transform: translateY(20px); opacity: 0; pointer-events: none;
+  transition: all .3s ease; z-index: 1000;
+}
+.toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.toast.error { border-color: rgba(248,113,113,0.4); color: #fecaca; }
+
+footer { text-align: center; color: var(--text-dim); font-size: 0.85rem; margin-top: auto; padding-top: 20px; }
+footer a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 640px) {
+  .app { padding: 24px 16px; }
+  header h1 { font-size: 1.75rem; }
+  .formats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>PDF to All Formats Converter</h1>
+    <p>Convert PDFs to presentations, documents, ebooks & images — entirely in your browser.</p>
+  </header>
+
+  <section class="card drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".pdf,application/pdf">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <h3>Drop your PDF here</h3>
+    <p>or click to browse. Files stay on your device.</p>
+  </section>
+
+  <section class="card file-info hidden" id="fileInfo">
+    <div class="meta">
+      <div class="thumb">PDF</div>
+      <div>
+        <div class="name" id="fName">document.pdf</div>
+        <div class="detail" id="fDetail">0 pages • 0 MB</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="formatsArea">
+    <h2 style="font-size:1.15rem;font-weight:600;margin-bottom:12px;">Select output format</h2>
+    <div class="formats-grid" id="formatsGrid">
+      <div class="format-card" data-format="txt">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <div class="f-name">Plain Text</div>
+        <div class="f-desc">.txt</div>
+      </div>
+      <div class="format-card" data-format="md">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <div class="f-name">Markdown</div>
+        <div class="f-desc">.md</div>
+      </div>
+      <div class="format-card" data-format="html">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <div class="f-name">Web Page</div>
+        <div class="f-desc">.html</div>
+      </div>
+      <div class="format-card" data-format="docx">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <div class="f-name">Word</div>
+        <div class="f-desc">.docx</div>
+      </div>
+      <div class="format-card" data-format="pptx">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <div class="f-name">PowerPoint</div>
+        <div class="f-desc">.pptx</div>
+      </div>
+      <div class="format-card" data-format="epub">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div class="f-name">EPUB</div>
+        <div class="f-desc">.epub ebook</div>
+      </div>
+      <div class="format-card" data-format="jpg">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <div class="f-name">JPEG Images</div>
+        <div class="f-desc">.jpg (ZIP)</div>
+      </div>
+      <div class="format-card" data-format="png">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <div class="f-name">PNG Images</div>
+        <div class="f-desc">.png (ZIP)</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="convertBtn" disabled>Convert Now</button>
+    </div>
+  </section>
+
+  <section class="card progress-wrap hidden" id="progressArea">
+    <div class="progress-label">
+      <span id="progressStatus">Preparing...</span>
+      <span id="progressPercent">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </section>
+
+  <section class="card result-card hidden" id="resultArea">
+    <div class="info">
+      <div class="r-name" id="resultName">converted.zip</div>
+      <div class="r-size" id="resultSize">0 MB</div>
+    </div>
+    <button class="primary" id="downloadBtn">Download</button>
+  </section>
+
+  <footer>
+    Built with <a href="https://mozilla.github.io/pdf.js/" target="_blank">PDF.js</a>, <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank">PptxGenJS</a> & <a href="https://stuk.github.io/jszip/" target="_blank">JSZip</a>. No server required.
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs';
+
+/* ---------- State ---------- */
+let currentFile = null;
+let currentPdf = null;
+let selectedFormat = null;
+let resultBlob = null;
+let resultFilename = 'converted';
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const fileInfo = $('fileInfo');
+const formatsArea = $('formatsArea');
+const progressArea = $('progressArea');
+const resultArea = $('resultArea');
+const fName = $('fName');
+const fDetail = $('fDetail');
+const convertBtn = $('convertBtn');
+const progressFill = $('progressFill');
+const progressStatus = $('progressStatus');
+const progressPercent = $('progressPercent');
+const resultName = $('resultName');
+const resultSize = $('resultSize');
+const downloadBtn = $('downloadBtn');
+const toast = $('toast');
+
+/* ---------- Helpers ---------- */
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
+
+function setProgress(pct, msg) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  progressFill.style.width = clamped + '%';
+  progressPercent.textContent = Math.round(clamped) + '%';
+  if (msg) progressStatus.textContent = msg;
+}
+
+function toastMsg(msg, type = 'info') {
+  toast.textContent = msg;
+  toast.className = 'toast show' + (type === 'error' ? ' error' : '');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+function fmtBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* Strip illegal XML 1.0 control characters, then escape entities */
+function sanitizeXml(str) {
+  return str
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    .replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+}
+
+async function renderPageDataUrl(page, scale, mime) {
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas.toDataURL(mime, 0.92);
+}
+
+/* ---------- File Handling ---------- */
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('active');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) loadFile(e.target.files[0]);
+});
+
+async function loadFile(file) {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    toastMsg('Please upload a PDF file.', 'error');
+    return;
+  }
+  currentFile = file;
+  try {
+    const ab = await file.arrayBuffer();
+    currentPdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    fName.textContent = file.name;
+    fDetail.textContent = `${currentPdf.numPages} page${currentPdf.numPages===1?'':'s'} • ${fmtBytes(file.size)}`;
+    show(fileInfo);
+    show(formatsArea);
+    hide(progressArea);
+    hide(resultArea);
+    selectedFormat = null;
+    document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
+    convertBtn.disabled = true;
+    window.scrollTo({ top: fileInfo.offsetTop - 20, behavior: 'smooth' });
+  } catch (err) {
+    console.error(err);
+    toastMsg('Failed to read PDF. It may be corrupted or encrypted.', 'error');
+  }
+}
+
+/* ---------- Format Selection ---------- */
+document.querySelectorAll('.format-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedFormat = card.dataset.format;
+    convertBtn.disabled = false;
+  });
+});
+
+/* ---------- Conversion Router ---------- */
+convertBtn.addEventListener('click', async () => {
+  if (!currentPdf || !selectedFormat) return;
+  hide(formatsArea);
+  show(progressArea);
+  setProgress(0, 'Initializing...');
+  resultBlob = null;
+
+  try {
+    switch (selectedFormat) {
+      case 'txt': await toTxt(); break;
+      case 'md': await toMd(); break;
+      case 'html': await toHtml(); break;
+      case 'docx': await toDocx(); break;
+      case 'pptx': await toPptx(); break;
+      case 'epub': await toEpub(); break;
+      case 'jpg': await toImages('image/jpeg', 'jpg'); break;
+      case 'png': await toImages('image/png', 'png'); break;
+    }
+    if (resultBlob) {
+      resultName.textContent = resultFilename;
+      resultSize.textContent = fmtBytes(resultBlob.size);
+      show(resultArea);
+    }
+  } catch (err) {
+    console.error(err);
+    toastMsg('Conversion error: ' + err.message, 'error');
+    show(formatsArea);
+  } finally {
+    hide(progressArea);
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (resultBlob) downloadBlob(resultBlob, resultFilename);
+});
+
+/* ---------- Converters ---------- */
+
+async function toTxt() {
+  let out = '';
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = tc.items.map(it => it.str).join(' ');
+    out += `\n--- Page ${i} ---\n${text}`;
+    setProgress((i / n) * 100, `Extracting text from page ${i}...`);
+  }
+  resultBlob = new Blob([out.trim()], { type: 'text/plain;charset=utf-8' });
+  resultFilename = currentFile.name.replace(/\.pdf$/i, '') + '.txt';
+}
+
+async function toMd() {
+  let out = `# ${currentFile.name.replace(/\.pdf$/i,'')}\n\n`;
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = tc.items.map(it => it.str).join(' ');
+    out += `## Page ${i}\n\n${text}\n\n`;
+    setProgress((i / n) * 100, `Building Markdown for page ${i}...`);
+  }
+  resultBlob = new Blob([out], { type: 'text/markdown;charset=utf-8' });
+  resultFilename = currentFile.name.replace(/\.pdf$/i, '') + '.md';
+}
+
+async function toHtml() {
+  let body = '';
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = tc.items.map(it => it.str).join(' ');
+    const paras = text.split(/\n+/).filter(p => p.trim()).map(p => `<p>${sanitizeXml(p)}</p>`).join('');
+    body += `<section><h2>Page ${i}</h2>${paras}</section><hr>`;
+    setProgress((i / n) * 100, `Building HTML for page ${i}...`);
+  }
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Converted PDF</title><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#222}h2{color:#111}hr{border:0;border-top:1px solid #ddd;margin:32px 0}</style></head><body>${body}</body></html>`;
+  resultBlob = new Blob([html], { type: 'text/html' });
+  resultFilename = currentFile.name.replace(/\.pdf$/i, '') + '.html';
+}
+
+async function toImages(mime, ext) {
+  const zip = new JSZip();
+  const folder = zip.folder('pages');
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const dataUrl = await renderPageDataUrl(page, 2.0, mime);
+    const b64 = dataUrl.split(',')[1];
+    folder.file(`page_${String(i).padStart(3,'0')}.${ext}`, b64, { base64: true });
+    setProgress((i / n) * 100, `Rendering page ${i} as ${ext.toUpperCase()}...`);
+  }
+  setProgress(99, 'Zipping images...');
+  resultBlob = await zip.generateAsync({ type: 'blob' });
+  resultFilename = currentFile.name.replace(/\.pdf$/i, '') + `_${ext}_pages.zip`;
+}
+
+async function toPptx() {
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_16x9';
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const dataUrl = await renderPageDataUrl(page, 1.5, 'image/png');
+    const slide = pres.addSlide();
+    slide.addImage({ data: dataUrl, x: 0, y: 0, w: '100%', h: '100%', sizing: { type: 'cover' } });
+    setProgress((i / n) * 100, `Building slide ${i}...`);
+  }
+  setProgress(99, 'Finalizing presentation...');
+  resultBlob = await pres.writeFile({ fileName: 'converted.pptx', outputType: 'blob' });
+  resultFilename = currentFile.name.replace(/\.pdf$/i, '') + '.pptx';
+}
+
+async function toDocx() {
+  const pages = [];
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = tc.items.map(it => it.str).join(' ');
+    pages.push(text);
+    setProgress((i / n) * 50, `Reading page ${i}...`);
+  }
+
+  const zip = new JSZip();
+  const title = currentFile.name.replace(/\.pdf$/i, '');
+
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`);
+
+  zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`);
+
+  zip.folder('word').folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`);
+
+  let body = '';
+  pages.forEach((text, idx) => {
+    if (idx > 0) {
+      body += `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+    }
+    const paras = text.split(/\n+/).filter(p => p.trim());
+    paras.forEach(p => {
+      const safe = sanitizeXml(p);
+      body += `<w:p>
+        <w:pPr><w:spacing w:after="200" w:line="276" w:lineRule="auto"/></w:pPr>
+        <w:r>
+          <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>
+          <w:t xml:space="preserve">${safe}</w:t>
+        </w:r>
+      </w:p>`;
+    });
+  });
+
+  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
+</w:document>`;
+
+  zip.folder('word').file('document.xml', docXml);
+
+  const now = new Date().toISOString();
+  zip.folder('docProps').file('core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>${sanitizeXml(title)}</dc:title>
+  <dc:creator>OmniPDF</dc:creator>
+  <cp:lastModifiedBy>OmniPDF</cp:lastModifiedBy>
+  <cp:revision>1</cp:revision>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>
+</cp:coreProperties>`);
+
+  zip.folder('docProps').file('app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+  <Template>Normal.dotm</Template>
+  <TotalTime>0</TotalTime>
+  <Pages>${pages.length}</Pages>
+  <Words>0</Words>
+  <Characters>0</Characters>
+  <Application>OmniPDF Converter</Application>
+  <DocSecurity>0</DocSecurity>
+  <Lines>0</Lines>
+  <Paragraphs>0</Paragraphs>
+  <ScaleCrop>false</ScaleCrop>
+  <Company></Company>
+  <LinksUpToDate>false</LinksUpToDate>
+  <CharactersWithSpaces>0</CharactersWithSpaces>
+  <SharedDoc>false</SharedDoc>
+  <HyperlinksChanged>false</HyperlinksChanged>
+  <AppVersion>16.0000</AppVersion>
+</Properties>`);
+
+  setProgress(90, 'Building DOCX archive...');
+  resultBlob = await zip.generateAsync({ type: 'blob' });
+  resultFilename = title + '.docx';
+}
+
+async function toEpub() {
+  const pages = [];
+  const n = currentPdf.numPages;
+  for (let i = 1; i <= n; i++) {
+    const page = await currentPdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = tc.items.map(it => it.str).join(' ');
+    pages.push(text);
+    setProgress((i / n) * 60, `Processing page ${i}...`);
+  }
+
+  const title = currentFile.name.replace(/\.pdf$/i, '');
+  const zip = new JSZip();
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+
+  zip.folder('META-INF').file('container.xml', `<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`);
+
+  let manifest = '';
+  let spine = '';
+  pages.forEach((text, idx) => {
+    const id = `page${idx+1}`;
+    const href = `text/${id}.xhtml`;
+    manifest += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>`;
+    spine += `<itemref idref="${id}"/>`;
+    const xhtml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Page ${idx+1}</title></head><body>
+<h1>Page ${idx+1}</h1>
+${text.split(/\n+/).filter(p=>p.trim()).map(p=>`<p>${sanitizeXml(p)}</p>`).join('')}
+</body></html>`;
+    zip.folder('OEBPS').folder('text').file(`${id}.xhtml`, xhtml);
+  });
+
+  const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
+<package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>${sanitizeXml(title)}</dc:title>
+    <dc:language>en</dc:language>
+    <dc:identifier id="BookId">urn:uuid:omnipdf-${Date.now()}</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    ${manifest}
+  </manifest>
+  <spine toc="toc">${spine}</spine>
+</package>`;
+  zip.folder('OEBPS').file('content.opf', contentOpf);
+
+  let navPoints = '';
+  pages.forEach((_, idx) => {
+    navPoints += `<navPoint id="navPoint-${idx+1}" playOrder="${idx+1}">
+      <navLabel><text>Page ${idx+1}</text></navLabel>
+      <content src="text/page${idx+1}.xhtml"/>
+    </navPoint>`;
+  });
+  const toc = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head><meta name="dtb:uid" content="urn:uuid:omnipdf-${Date.now()}"/></head>
+  <docTitle><text>${sanitizeXml(title)}</text></docTitle>
+  <navMap>${navPoints}</navMap>
+</ncx>`;
+  zip.folder('OEBPS').file('toc.ncx', toc);
+
+  setProgress(90, 'Building EPUB archive...');
+  resultBlob = await zip.generateAsync({ type: 'blob' });
+  resultFilename = title + '.epub';
+}
+</script>
+</body>
+</html>
