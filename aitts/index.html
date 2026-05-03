@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kokoro TTS Book Reader</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --accentHover: #0550ae;
+    --danger: #cf222e;
+    --warning: #9a6700;
+    --border: #d0d7de;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(31,35,40,0.04), 0 8px 24px rgba(66,74,83,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accentHover: #79c0ff;
+      --danger: #f85149;
+      --warning: #d29922;
+      --border: #30363d;
+      --shadow: 0 1px 3px rgba(1,4,9,0.6), 0 8px 24px rgba(1,4,9,0.8);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 18px; }
+  .grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 12px;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+  }
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  select, input[type="range"], textarea, button {
+    width: 100%; font: inherit; color: inherit;
+  }
+  select, button, textarea {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  button {
+    cursor: pointer; font-weight: 600; border-color: var(--accent);
+    background: var(--accent); color: #fff; transition: filter .15s ease;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.05); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+  button.secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
+  button.danger { background: var(--danger); border-color: var(--danger); }
+  textarea {
+    min-height: 220px; resize: vertical; font-size: 0.95rem; line-height: 1.45;
+    background: var(--bg);
+  }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .actions button { width: auto; flex: 1 1 140px; }
+  .progress-area { margin-top: 14px; }
+  .bar-wrap {
+    height: 28px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden; position: relative;
+  }
+  #progFill {
+    height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accentHover));
+    border-radius: 999px; position: relative; overflow: hidden;
+    transition: width .35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* Striped animation overlay during synthesis */
+  #progFill::after {
+    content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(
+      45deg,
+      rgba(255,255,255,0.15) 25%, transparent 25%,
+      transparent 50%, rgba(255,255,255,0.15) 50%,
+      rgba(255,255,255,0.15) 75%, transparent 75%, transparent
+    );
+    background-size: 20px 20px;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .synth #progFill::after {
+    opacity: 1;
+    animation: stripeMove 1s linear infinite;
+  }
+  @keyframes stripeMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 20px 20px; }
+  }
+  #progText {
+    font-variant-numeric: tabular-nums; font-size: 0.95rem;
+    margin-top: 8px; color: var(--text); font-weight: 600;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px;
+  }
+  #status { margin-top: 8px; font-size: 0.9rem; min-height: 1.4em; }
+  .stats { display: flex; gap: 16px; margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+  .warning { color: var(--warning); font-weight: 600; }
+  .error { color: var(--danger); font-weight: 600; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row label { margin: 0; }
+  .chunk-preview {
+    font-size: 0.82rem; color: var(--muted); margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kokoro TTS Book Reader</h1>
+  <div class="sub">Opens from file:// · No server · No GPU · 3-decimal progress · 200-page books</div>
+
+  <div class="panel">
+    <div class="grid">
+      <div>
+        <label>Model</label>
+        <button id="btnLoad">1. Load Model (~80 MB once)</button>
+        <div class="hint">q8 WASM, CPU-only. Cached after first load.</div>
+      </div>
+      <div>
+        <label>Voice</label>
+        <select id="selVoice" disabled><option>Load model first…</option></select>
+      </div>
+      <div>
+        <label>Speed</label>
+        <input type="range" id="rngSpeed" min="0.5" max="1.5" step="0.05" value="1.0">
+        <div class="hint" id="speedHint">1.00×</div>
+      </div>
+      <div>
+        <label>Chunk Size (RAM vs Speed)</label>
+        <select id="selChunk">
+          <option value="100">Small (100 chars) — lowest RAM</option>
+          <option value="200" selected>Medium (200 chars)</option>
+          <option value="400">Large (400 chars) — fastest</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <label class="row" style="gap:6px; font-size:0.85rem; color:var(--text)">
+        <input type="checkbox" id="chkSave" checked>
+        Keep audio for download
+      </label>
+      <span class="hint" style="margin:0">Uncheck on 2 GB RAM devices to stream-only.</span>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:12px">
+    <label>Text (paste a full book if you like)</label>
+    <textarea id="txtInput" placeholder="Paste book text here…"></textarea>
+    <div class="hint" id="txtHint">0 characters — estimate will appear after typing.</div>
+  </div>
+
+  <div class="actions">
+    <button id="btnGenerate" disabled>2. Generate &amp; Play</button>
+    <button id="btnPause" class="secondary" disabled>Pause</button>
+    <button id="btnResume" class="secondary" disabled>Resume</button>
+    <button id="btnStop" class="danger" disabled>Stop</button>
+    <button id="btnDownload" class="secondary" disabled>Download WAV</button>
+  </div>
+
+  <div class="progress-area panel">
+    <div class="bar-wrap" id="barWrap">
+      <div id="progFill"></div>
+    </div>
+    <div id="progText">
+      <span id="progLeft">0.000 / 0.000 chunks</span>
+      <span id="progRight">0.000%</span>
+    </div>
+    <div class="chunk-preview" id="chunkPreview">Ready</div>
+    <div id="status">Ready. Click <b>Load Model</b> to download the voice model.</div>
+    <div class="stats">
+      <span id="memStat">Audio RAM: 0.0 MB</span>
+      <span id="timeStat">Elapsed: 0.0 s</span>
+      <span id="estStat">Estimate: —</span>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ============================================================
+   Kokoro TTS Book Reader — Robust Progress & Audio Extraction
+   ============================================================ */
+import { KokoroTTS } from 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm';
+import { env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1/+esm';
+
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+try {
+  if (env?.backends?.onnx?.wasm) env.backends.onnx.wasm.numThreads = 1;
+} catch (_) {}
+
+const $ = id => document.getElementById(id);
+const btnLoad      = $('btnLoad');
+const btnGenerate  = $('btnGenerate');
+const btnPause     = $('btnPause');
+const btnResume    = $('btnResume');
+const btnStop      = $('btnStop');
+const btnDownload  = $('btnDownload');
+const selVoice     = $('selVoice');
+const rngSpeed     = $('rngSpeed');
+const selChunk     = $('selChunk');
+const chkSave      = $('chkSave');
+const txtInput     = $('txtInput');
+const progFill     = $('progFill');
+const barWrap      = $('barWrap');
+const progLeft     = $('progLeft');
+const progRight    = $('progRight');
+const chunkPreview = $('chunkPreview');
+const status       = $('status');
+const memStat      = $('memStat');
+const timeStat     = $('timeStat');
+const estStat      = $('estStat');
+const speedHint    = $('speedHint');
+const txtHint      = $('txtHint');
+
+let tts = null;
+let audioCtx = null;
+let scheduledTime = 0;
+let savedChunks = [];
+let isGenerating = false;
+let isPaused = false;
+let abortFlag = false;
+let totalChunks = 0;
+let startTime = 0;
+
+const FALLBACK_VOICES = [
+  "af_heart","af_bella","af_nicole","af_sarah","af_sky","af_alloy","af_aoede",
+  "af_jadzia","af_jessica","af_kore","af_nova","af_river","af_v0","af_v0bella",
+  "af_v0irulan","af_v0nicole","af_v0sarah","af_v0sky","am_adam","am_echo",
+  "am_eric","am_fenrir","am_liam","am_michael","am_onyx","am_puck","am_santa",
+  "am_v0adam","am_v0gurney","am_v0michael","bf_alice","bf_emma","bf_lily",
+  "bf_v0emma","bf_v0isabella","bm_daniel","bm_fable","bm_george","bm_lewis",
+  "bm_v0george","bm_v0lewis","ef_dora","em_alex","em_santa","ff_siwis",
+  "hf_alpha","hf_beta","hm_omega","hm_psi","if_sara","im_nicola","jf_alpha",
+  "jf_gongitsune","jf_nezumi","jf_tebukuro","jm_kumo","pf_dora","pm_alex",
+  "pm_santa","zf_xiaobei","zf_xiaoni","zf_xiaoxiao","zf_xiaoyi","zm_yunjian",
+  "zm_yunxi","zm_yunxia","zm_yunyang"
+];
+
+// ---- Deep audio payload extractor ----------------------------------
+function extractAudio(result) {
+  if (result instanceof Float32Array) {
+    return { float32: result, sampleRate: 24000 };
+  }
+  if (!result || typeof result !== 'object') {
+    throw new Error('generate() returned: ' + String(result));
+  }
+
+  // Try direct properties
+  let float32 = result.data || result.audio || result.raw || result.wav || result.buffer || result._data || result.samples || result.array || result.values;
+  let sampleRate = result.sampleRate || result.sampling_rate || result.sample_rate || result.sampleRateHz || result.rate || 24000;
+
+  // Deep scan: if nothing at top level, look one level deep for Float32Array
+  if (!float32 || !(float32 instanceof Float32Array)) {
+    for (const key of Object.keys(result)) {
+      const val = result[key];
+      if (val instanceof Float32Array) {
+        float32 = val;
+        if (!sampleRate && result[key + 'Rate']) sampleRate = result[key + 'Rate'];
+        break;
+      }
+      if (val && typeof val === 'object' && val.data instanceof Float32Array) {
+        float32 = val.data;
+        if (val.sampleRate) sampleRate = val.sampleRate;
+        break;
+      }
+    }
+  }
+
+  if (!float32 || !(float32 instanceof Float32Array)) {
+    console.error('Unknown generate() result keys:', Object.keys(result));
+    for (const k of Object.keys(result)) {
+      const v = result[k];
+      console.log(`  ${k}:`, v?.constructor?.name || typeof v, v);
+    }
+    throw new Error('No Float32Array found in generate() result. Keys logged to console.');
+  }
+  return { float32, sampleRate };
+}
+
+// ---- Text chunking -------------------------------------------------
+function splitText(text, maxLen) {
+  text = text.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
+  if (!text) return [];
+
+  let sentences = [];
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    try {
+      const seg = new Intl.Segmenter('en', { granularity: 'sentence' });
+      for (const s of seg.segment(text)) {
+        const t = s.segment.trim();
+        if (t) sentences.push(t);
+      }
+    } catch (_) { sentences = []; }
+  }
+
+  if (!sentences.length) {
+    const m = text.match(/[^.!?]+[.!?]+[\s"']*/g);
+    if (m) sentences = m.map(s => s.trim()).filter(Boolean);
+    else sentences = [text];
+  }
+
+  const out = [];
+  for (const sent of sentences) {
+    if (sent.length <= maxLen) { out.push(sent); continue; }
+    const clauses = sent.split(/(?<=[,;])\s+/);
+    let cur = '';
+    for (const c of clauses) {
+      const trial = cur ? (cur + ' ' + c) : c;
+      if (trial.length > maxLen && cur) { out.push(cur.trim()); cur = c; }
+      else { cur = trial; }
+    }
+    if (cur.trim()) {
+      if (cur.length > maxLen) {
+        const words = cur.split(/\s+/);
+        let wcur = '';
+        for (const w of words) {
+          const trial = wcur ? (wcur + ' ' + w) : w;
+          if (trial.length > maxLen && wcur) { out.push(wcur.trim()); wcur = w; }
+          else { wcur = trial; }
+        }
+        if (wcur.trim()) out.push(wcur.trim());
+      } else {
+        out.push(cur.trim());
+      }
+    }
+  }
+  return out.filter(s => s.length > 0);
+}
+
+// ---- Audio scheduling ----------------------------------------------
+function ensureAudioContext() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function schedulePlayback(float32, sampleRate) {
+  ensureAudioContext();
+  const buf = audioCtx.createBuffer(1, float32.length, sampleRate);
+  buf.getChannelData(0).set(float32);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  const startAt = Math.max(now, scheduledTime);
+  src.start(startAt);
+  scheduledTime = startAt + buf.duration;
+  return { duration: buf.duration, startAt };
+}
+
+// ---- WAV builder ---------------------------------------------------
+function buildWAV() {
+  if (!savedChunks.length) return null;
+  const rate = savedChunks[0].sampleRate;
+  let total = 0;
+  for (const c of savedChunks) total += c.int16.length;
+  const out = new ArrayBuffer(44 + total * 2);
+  const view = new DataView(out);
+  const write = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + total * 2, true);
+  write(8, 'WAVE');
+  write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, 'data');
+  view.setUint32(40, total * 2, true);
+  let off = 44;
+  for (const c of savedChunks) {
+    for (let i = 0; i < c.int16.length; i++) { view.setInt16(off, c.int16[i], true); off += 2; }
+  }
+  return new Blob([out], { type: 'audio/wav' });
+}
+
+// ---- Progress UI ---------------------------------------------------
+function setStatus(msg, cls = '') { status.className = cls; status.textContent = msg; }
+function updateButtons() {
+  btnGenerate.disabled = isGenerating || !tts;
+  btnPause.disabled = !isGenerating || isPaused;
+  btnResume.disabled = !isGenerating || !isPaused;
+  btnStop.disabled = !isGenerating;
+  btnDownload.disabled = !savedChunks.length || isGenerating;
+}
+function fmt3(n) { return n.toFixed(3); }
+
+function setProgressUI(completed, total, previewText, isSynthesizing) {
+  const pct = total > 0 ? (completed / total * 100) : 0;
+  progFill.style.width = pct + '%';
+  progLeft.textContent = `${fmt3(completed)} / ${fmt3(total)} chunks`;
+  progRight.textContent = `${fmt3(pct)}%`;
+  chunkPreview.textContent = previewText || (total > 0 ? 'Synthesizing…' : 'Ready');
+
+  // Visual state: striped animation during active chunk synthesis
+  if (isSynthesizing && total > 0 && completed < total) {
+    barWrap.classList.add('synth');
+  } else {
+    barWrap.classList.remove('synth');
+  }
+}
+
+function updateEstimate() {
+  const text = txtInput.value;
+  const maxLen = parseInt(selChunk.value, 10);
+  const chunks = splitText(text, maxLen);
+  const estSec = chunks.length * 0.55;
+  const estMin = Math.ceil(estSec / 60);
+  const estMB = (chunks.length * 0.55 * 24000 * 2 / 1024 / 1024).toFixed(1);
+  txtHint.textContent = `${text.length.toLocaleString()} chars · ~${chunks.length.toLocaleString()} chunks · ~${estMin} min audio`;
+  estStat.textContent = `Estimate: ${chunks.length} chunks · ~${estMin} min · ${chkSave.checked ? '~' + estMB + ' MB' : 'stream-only'}`;
+}
+
+// ---- Model loading -------------------------------------------------
+btnLoad.addEventListener('click', async () => {
+  btnLoad.disabled = true;
+  setStatus('Downloading model files (one-time ~80 MB)…');
+  try {
+    tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+      dtype: 'q8',
+      device: 'wasm',
+      progress_callback: (p) => {
+        if (p && typeof p.progress === 'number') {
+          setStatus(`Downloading ${p.file || 'model'} … ${(p.progress * 100).toFixed(1)}%`);
+        }
+      }
+    });
+
+    console.log('KokoroTTS loaded keys:', Object.keys(tts || {}));
+    let voices = [];
+    try {
+      if (typeof tts.list_voices === 'function') voices = tts.list_voices();
+      else if (Array.isArray(tts.voices)) voices = tts.voices;
+    } catch (e) { console.warn('list_voices error:', e); }
+
+    if (!Array.isArray(voices) || voices.length === 0) {
+      console.warn('Using fallback voice list');
+      voices = FALLBACK_VOICES;
+    }
+
+    selVoice.innerHTML = '';
+    voices.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      selVoice.appendChild(o);
+    });
+    selVoice.disabled = false;
+    setStatus(`Model ready. ${voices.length} voices loaded. Paste text and click Generate & Play.`, 'ok');
+  } catch (err) {
+    setStatus('Load error: ' + err.message, 'error');
+    btnLoad.disabled = false;
+    console.error(err);
+  }
+  updateButtons();
+});
+
+// ---- Generation ----------------------------------------------------
+btnGenerate.addEventListener('click', async () => {
+  const text = txtInput.value.trim();
+  if (!text) { setStatus('Please paste some text first.', 'warning'); return; }
+  if (!tts) { setStatus('Model not loaded yet.', 'warning'); return; }
+
+  const maxLen = parseInt(selChunk.value, 10);
+  const chunks = splitText(text, maxLen);
+  if (!chunks.length) { setStatus('No valid chunks found.', 'warning'); return; }
+
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  scheduledTime = 0;
+  savedChunks = [];
+  totalChunks = chunks.length;
+  isGenerating = true;
+  isPaused = false;
+  abortFlag = false;
+  startTime = performance.now();
+  updateButtons();
+
+  setProgressUI(0, totalChunks, 'Starting…', false);
+  setStatus(`Starting ${totalChunks.toLocaleString()} chunks…`);
+
+  const voice = selVoice.value || 'af_heart';
+  const speed = parseFloat(rngSpeed.value);
+
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      if (abortFlag) break;
+
+      // Show "synth" animation while this chunk is being generated
+      setProgressUI(i, totalChunks, `Chunk ${i + 1}: "${chunks[i].slice(0, 90)}…"`, true);
+      setStatus(`Synthesizing chunk ${i + 1} / ${chunks.length}`);
+
+      let raw;
+      try {
+        raw = await tts.generate(chunks[i], { voice, speed });
+      } catch (genErr) {
+        console.error(`Chunk ${i + 1} failed:`, genErr);
+        setStatus(`Chunk ${i + 1} failed: ${genErr.message}. Continuing…`, 'warning');
+        // Still update progress so bar doesn't get stuck
+        setProgressUI(i + 1, totalChunks, `Error in chunk ${i + 1}`, false);
+        await new Promise(r => setTimeout(r, 50));
+        continue;
+      }
+
+      const { float32, sampleRate } = extractAudio(raw);
+      schedulePlayback(float32, sampleRate);
+
+      if (chkSave.checked) {
+        const int16 = new Int16Array(float32.length);
+        for (let k = 0; k < float32.length; k++) {
+          const s = Math.max(-1, Math.min(1, float32[k]));
+          int16[k] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        savedChunks.push({ int16, sampleRate, duration: float32.length / sampleRate });
+      }
+
+      // Update progress immediately after chunk completion
+      setProgressUI(i + 1, totalChunks, `Chunk ${i + 1} done`, false);
+
+      const storedSamples = savedChunks.reduce((s, c) => s + c.int16.length, 0);
+      const memMB = (storedSamples * 2 / 1024 / 1024).toFixed(1);
+      memStat.textContent = `Audio RAM: ${chkSave.checked ? memMB + ' MB' : 'stream-only'}`;
+      timeStat.textContent = `Elapsed: ${((performance.now() - startTime) / 1000).toFixed(1)}s`;
+
+      // Yield to UI thread & GC
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    if (!abortFlag) {
+      setProgressUI(totalChunks, totalChunks, 'Complete', false);
+      setStatus('Done. Use Download WAV to save the full book, or paste new text.', 'ok');
+    }
+  } catch (err) {
+    setStatus('Fatal error: ' + err.message, 'error');
+    console.error(err);
+  } finally {
+    isGenerating = false;
+    barWrap.classList.remove('synth');
+    updateButtons();
+  }
+});
+
+// ---- Playback controls ---------------------------------------------
+btnPause.addEventListener('click', () => {
+  if (audioCtx && audioCtx.state === 'running') {
+    audioCtx.suspend();
+    isPaused = true;
+    updateButtons();
+    setStatus('Paused. Click Resume to continue.');
+    barWrap.classList.remove('synth');
+  }
+});
+
+btnResume.addEventListener('click', () => {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+    isPaused = false;
+    updateButtons();
+    setStatus('Resumed.');
+  }
+});
+
+btnStop.addEventListener('click', () => {
+  abortFlag = true;
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  scheduledTime = 0;
+  isGenerating = false;
+  isPaused = false;
+  updateButtons();
+  setProgressUI(0, 0, 'Stopped', false);
+  setStatus('Stopped by user.', 'warning');
+});
+
+// ---- Download ------------------------------------------------------
+btnDownload.addEventListener('click', () => {
+  const blob = buildWAV();
+  if (!blob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kokoro_book_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.wav`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+  setStatus('WAV download started.', 'ok');
+});
+
+// ---- Listeners -----------------------------------------------------
+rngSpeed.addEventListener('input', () => {
+  speedHint.textContent = parseFloat(rngSpeed.value).toFixed(2) + '×';
+});
+
+[txtInput, selChunk, chkSave].forEach(el => el.addEventListener('input', updateEstimate));
+
+updateEstimate();
+updateButtons();
+</script>
+</body>
+</html>
