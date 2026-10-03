@@ -175,7 +175,7 @@ An entirely web-based drawing and image editing tool compatible with all operati
 
 ---
 
-<h3 align="center">⭐ <i>Found these tools useful? Don't forget to star my repository, and to contribute to the open-source community by making use of my code in your own projects if you are a programmer!</i> ⭐</h3>
+<h3 align="center">⭐ <i>Found these tools useful? Do email me at my address below if you have suggestions or want a feature! Don't forget to star my repository, and to contribute to the open-source community by making use of my code in your own projects if you are a programmer!</i> ⭐</h3>
 
 <p align="center">
   <sub><i>Made by Aishik Dutta</i></sub>
