@@ -53,7 +53,7 @@ An video generation tool perfect for musicians and content creators. It effortle
 <br>
 
 ### ✂️ <strong>ShortsMaker</strong> <sub><i>Video Aspect Ratio Converter</i></sub>
-> **🔗 Repository:** <a href="https://img2vid.github.io/shortsmaker" target="_blank">img2vid.github.io</a> | **🏷️ Category:** <code>Media Processing</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/shortsmaker" target="_blank">img2vid.github.io/shortsmaker</a> | **🏷️ Category:** <code>Media Processing</code>
 
 A video creation tool designed to turn long-form videos into highly engaging, publish-ready YouTube Shorts, TikToks, and Reels.
 
