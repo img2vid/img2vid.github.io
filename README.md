@@ -40,51 +40,45 @@ Seamlessly stitch sequentially named image files (e.g., <code>img001.png</code>,
 <br>
 
 ### 🎵 <strong>MusicVideoMaker</strong> <sub><i>Automated Music Visualizer & Video Generator</i></sub>
-> **🔗 Repository:** <a href="https://github.com/musicvideomaker" target="_blank">github.com/musicvideomaker</a> | **🏷️ Category:** <code>Video Automation</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/musicvideomaker" target="_blank">github.com/musicvideomaker</a> | **🏷️ Category:** <code>Media Processing</code>
 
-An automated video generation tool perfect for musicians, content creators, and YouTube automation channels. It effortlessly combines audio tracks with visual elements to generate dynamic music videos.
+An video generation tool perfect for musicians and content creators. It effortlessly combines audio tracks with visual elements to generate dynamic music videos.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>🎬 <strong>Scene Extraction:</strong> Automatically pulls dynamic scenes from existing video footage to match an audio track using beat-tracking algorithms.</li>
   <li>🖼️ <strong>Static to Video:</strong> Convert a single promotional image and an <kbd>MP3</kbd>/<kbd>WAV</kbd> file into a fully rendered <kbd>MP4</kbd> music video.</li>
-  <li>⚡ <strong>Batch Rendering:</strong> Generate multiple visualizers for entire albums in one go.</li>
 </ul>
 </details>
 
 <br>
 
-### ✂️ <strong>ShortsMaker</strong> <sub><i>AI-Powered Short-Form Video Creator</i></sub>
-> **🔗 Repository:** <a href="https://github.com/shortsmaker" target="_blank">github.com/shortsmaker</a> | **🏷️ Category:** <code>Social Media Automation</code>
+### ✂️ <strong>ShortsMaker</strong> <sub><i>Video Aspect Ratio Converter</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/shortsmaker" target="_blank">github.com/shortsmaker</a> | **🏷️ Category:** <code>Media Processing</code>
 
-An AI-powered video creation tool designed to turn long-form interviews and podcasts into highly engaging, publish-ready YouTube Shorts, TikToks, and Reels.
+A video creation tool designed to turn long-form videos into highly engaging, publish-ready YouTube Shorts, TikToks, and Reels.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>🔪 <strong>Smart Clipping:</strong> Automatically cuts videos at natural sentence boundaries using NLP.</li>
   <li>📐 <strong>Auto-Reframing:</strong> Intelligently reframes horizontal footage into <kbd>9:16</kbd> vertical formats while keeping the subject in frame.</li>
-  <li>🎤 <strong>Karaoke Subtitles:</strong> Automatically burns in dynamic, word-by-word animated subtitles for maximum viewer retention.</li>
 </ul>
 </details>
 
 <br>
 
-### 📐 <strong>VideoResizer</strong> <sub><i>CLI & Context-Menu Video Scaler</i></sub>
-> **🔗 Repository:** <a href="https://github.com/videoresizer" target="_blank">github.com/videoresizer</a> | **🏷️ Category:** <code>Media Processing</code>
+### 📐 <strong>VideoResizer</strong> <sub><i>Video Scaler</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/videoresizer" target="_blank">github.com/videoresizer</a> | **🏷️ Category:** <code>Media Processing</code>
 
-A powerful command-line and context-menu utility that leverages industry-standard engines like FFmpeg and HandBrake to quickly resize, compress, and re-encode video files.
+A powerful utility to quickly modify the size of the video in terms of pixels.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>🖱️ <strong>Right-Click Integration:</strong> Resize videos directly from your OS file explorer's context menu without opening a heavy editor.</li>
-  <li>📏 <strong>Smart Scaling:</strong> Features like <code>VideoResizer.auto</code> intelligently scale based on original dimensions, or scale by precise percentages.</li>
-  <li>⚡ <strong>Batch Processing:</strong> Quickly re-encode large libraries of video footage to fit specific platform bitrate requirements.</li>
+  <li>⚡ <strong>Multi-Threading:</strong> Takes full advantage of powerful multi-threaded processors</li>
 </ul>
 </details>
 
