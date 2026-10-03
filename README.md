@@ -142,7 +142,7 @@ A robust speech synthesis system.
 <br>
 
 ### ⚡ <strong>FastReader</strong> <sub><i>RSVP Speed Reading Application</i></sub>
-> **🔗 Repository:** <a href="https://img2vid.github.io/fastreader" target="_blank">img2vid.github.io/fastreader</a> | **🏷️ Category:** <code>Accessibility /Education</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/fastreader" target="_blank">img2vid.github.io/fastreader</a> | **🏷️ Category:** <code>Accessibility / Education</code>
 
 A revolutionary speed-reading application that helps users achieve incredible reading velocities. It achieves this by utilizing the <strong>Rapid Serial Visual Presentation (RSVP)</strong> method, eliminating eye-tracking fatigue.
 
