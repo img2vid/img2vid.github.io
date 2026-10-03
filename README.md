@@ -5,9 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Made%20with-Markdown-1f425f.svg?style=for-the-badge" alt="Made with Markdown">
   <img src="https://img.shields.io/badge/Open%20Source-❤-green.svg?style=for-the-badge" alt="Open Source">
-  <img src="https://img.shields.io/badge/Tools-13-blue.svg?style=for-the-badge" alt="13 Tools">
 </p>
 
 ---
@@ -40,7 +38,7 @@ Seamlessly stitch sequentially named image files (e.g., <code>img001.png</code>,
 <br>
 
 ### 🎵 <strong>MusicVideoMaker</strong> <sub><i>Automated Music Visualizer & Video Generator</i></sub>
-> **🔗 Repository:** <a href="https://img2vid.github.io/musicvideomaker" target="_blank">github.com/musicvideomaker</a> | **🏷️ Category:** <code>Media Processing</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/musicvideomaker" target="_blank">img2vid.github.io/musicvideomaker</a> | **🏷️ Category:** <code>Media Processing</code>
 
 An video generation tool perfect for musicians and content creators. It effortlessly combines audio tracks with visual elements to generate dynamic music videos.
 
@@ -55,7 +53,7 @@ An video generation tool perfect for musicians and content creators. It effortle
 <br>
 
 ### ✂️ <strong>ShortsMaker</strong> <sub><i>Video Aspect Ratio Converter</i></sub>
-> **🔗 Repository:** <a href="https://img2vid.github.io/shortsmaker" target="_blank">github.com/shortsmaker</a> | **🏷️ Category:** <code>Media Processing</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/shortsmaker" target="_blank">img2vid.github.io</a> | **🏷️ Category:** <code>Media Processing</code>
 
 A video creation tool designed to turn long-form videos into highly engaging, publish-ready YouTube Shorts, TikToks, and Reels.
 
@@ -70,7 +68,7 @@ A video creation tool designed to turn long-form videos into highly engaging, pu
 <br>
 
 ### 📐 <strong>VideoResizer</strong> <sub><i>Video Scaler</i></sub>
-> **🔗 Repository:** <a href="https://img2vid.github.io/videoresizer" target="_blank">github.com/videoresizer</a> | **🏷️ Category:** <code>Media Processing</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/videoresizer" target="_blank">img2vid.github.io/videoresizer</a> | **🏷️ Category:** <code>Media Processing</code>
 
 A powerful utility to quickly modify the size of the video in terms of pixels.
 
@@ -87,111 +85,72 @@ A powerful utility to quickly modify the size of the video in terms of pixels.
 <h2 align="center">📄 <strong>Document & File Utilities</strong></h2>
 
 ### 🖼️ <strong>PDF2JPG</strong> <sub><i>High-Quality PDF to Image Extractor</i></sub>
-> **🔗 Repository:** <a href="https://github.com/PDF2JPG" target="_blank">github.com/PDF2JPG</a> | **🏷️ Category:** <code>Document Conversion</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/PDF2JPG" target="_blank">img2vid.github.io/PDF2JPG</a> | **🏷️ Category:** <code>File Conversion</code>
 
-An essential utility ecosystem dedicated to transforming PDF documents into high-quality JPG images. Whether you need to extract specific pages or convert entire reports, these tools handle the heavy lifting using engines like <code>apache-pdfbox</code>.
+An essential utility ecosystem dedicated to transforming PDF documents into high-quality JPG images.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
   <li>🖼️ <strong>Lossless Extraction:</strong> Converts PDF pages into crisp, high-DPI JPG images.</li>
-  <li>📑 <strong>Batch Processing:</strong> Handle multiple PDF files or large multi-page documents effortlessly via CLI or GUI.</li>
-  <li>🎛️ <strong>Customizable Quality:</strong> Adjust compression and resolution settings to balance file size and image clarity.</li>
+  <li>🎛️ <strong>Customizable Quality:</strong> Adjust resolution settings to balance file size and image clarity.</li>
 </ul>
 </details>
 
 <br>
 
-### 📂 <strong>PDF2All</strong> <sub><i>Comprehensive PDF Manipulation Suite</i></sub>
-> **🔗 Repository:** <a href="https://github.com/pdf2all" target="_blank">github.com/pdf2all</a> | **🏷️ Category:** <code>Universal Converter</code>
+### 📂 <strong>PDF2All</strong> <sub><i>PDF to Other Formats Converter</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/pdf2all" target="_blank">img2vid.github.io/pdf2all</a> | **🏷️ Category:** <code>File Conversion</code>
 
-The ultimate Swiss Army knife for PDF manipulation. <strong>PDF2All</strong> is a comprehensive suite that allows users to convert PDFs into a broad variety of formats and perform deep document editing operations.
+<strong>PDF2All</strong> is a tool that allows users to convert PDFs into a broad variety of formats and perform deep document editing operations.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
   <li>🛠️ <strong>Versatile Conversion:</strong> Export PDFs to Word, Excel, PowerPoint, Images, and HTML.</li>
-  <li>📦 <strong>All-in-One Suite:</strong> Handles merging, splitting, compressing, rotating, and unlocking password-protected PDFs.</li>
-  <li>🔒 <strong>Privacy Focused:</strong> Process sensitive documents locally without uploading them to third-party cloud servers.</li>
 </ul>
 </details>
 
 <br>
-
-### 🔓 <strong>FileOpener</strong> <sub><i>Cross-Platform File Routing Plugin</i></sub>
-> **🔗 Repository:** <a href="https://github.com/fileopener" target="_blank">github.com/fileopener</a> | **🏷️ Category:** <code>System Utilities</code>
-
-A collection of cross-platform plugins (for Capacitor, Cordova, and Unity) and standalone utilities designed to seamlessly open local files using the device's default native applications.
-
-<details>
-<summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
-<br>
-<ul>
-  <li>📱 <strong>Mobile Integration:</strong> Open documents, PDFs, and media on iOS and Android with a single tap via custom URL schemes (e.g., <code>fileopener://</code>).</li>
-  <li>🖥️ <strong>Editor Routing:</strong> Ensures that files opened in environments like Unity3D or VS Code jump directly to the correct line and column.</li>
-  <li>⚙️ <strong>MIME Type Detection:</strong> Automatically detects the correct MIME type to ensure the OS launches the right application.</li>
-</ul>
-</details>
-
-<br>
-
-### ✂️ <strong>Splitter</strong> <sub><i>Versatile File & Media Divider</i></sub>
-> **🔗 Repository:** <a href="https://github.com/splitter" target="_blank">github.com/splitter</a> | **🏷️ Category:** <code>File Management</code>
-
-A versatile suite of lightweight utilities designed to divide large files into smaller, manageable chunks. Whether you are working with images, documents, or binary data, <strong>Splitter</strong> handles it.
-
-<details>
-<summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
-<br>
-<ul>
-  <li>🖼️ <strong>Image Grids:</strong> Splits large images into grid-based tiles for web optimization, Instagram carousels, or large-format printing.</li>
-  <li>📄 <strong>PDF Splitting:</strong> Efficiently breaks down massive PDF documents by specific page ranges or chapters.</li>
-  <li>🧩 <strong>Binary & Audio Splitting:</strong> Divides large media files or binaries with precise byte-level synchronization for easy re-merging.</li>
-</ul>
-</details>
 
 ---
 
 <h2 align="center">🗣️ <strong>AI Voice & Accessibility</strong></h2>
 
-### 🤖 <strong>AITTS</strong> <sub><i>Deep Learning Text-to-Speech Engine</i></sub>
-> **🔗 Repository:** <a href="https://github.com/aitts" target="_blank">github.com/aitts</a> | **🏷️ Category:** <code>AI Voice Synthesis</code>
+### 🤖 <strong>AITTS</strong> <sub><i>AI Text-to-Speech Engine</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/aitts" target="_blank">img2vid.github.io/aitts</a> | **🏷️ Category:** <code>Speech Synthesis</code>
 
-A cutting-edge AI Text-to-Speech (TTS) engine and platform. It leverages deep learning architectures (like Coqui-AI and modern neural networks) to synthesize highly lifelike, human-like voices from plain text.
+A cutting-edge AI Text-to-Speech (TTS) software. It leverages deep learning architectures to synthesize highly lifelike, human-like voices from plain text.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>🌍 <strong>Multilingual Support:</strong> Supports an expansive range of <strong>1100+ languages</strong> and regional dialects.</li>
   <li>🧠 <strong>Neural Networks:</strong> Powered by advanced deep learning TTS models for natural cadence, emotion, and breath control.</li>
-  <li>🎭 <strong>Voice Cloning:</strong> Instantly clone custom voices with just a few seconds of reference audio.</li>
 </ul>
 </details>
 
 <br>
 
-### 🔊 <strong>FreeTTS</strong> <sub><i>Java-Based & Web AI Speech Synthesis</i></sub>
-> **🔗 Repository:** <a href="https://github.com/freetts" target="_blank">github.com/freetts</a> | **🏷️ Category:** <code>Speech Synthesis</code>
+### 🔊 <strong>FreeTTS</strong> <sub><i>Speech Synthesis</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/freetts" target="_blank">img2vid.github.io/freetts</a> | **🏷️ Category:** <code>Speech Synthesis</code>
 
-A robust, completely free speech synthesis system originally written entirely in Java (based on the Flite engine). The modern ecosystem extends into web-based AI TTS services and ChatGPT plugins.
+A robust speech synthesis system.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>☕ <strong>Java Native:</strong> Built entirely in Java for cross-platform compatibility and seamless server-side enterprise integration.</li>
-  <li>🌐 <strong>AI Web TTS:</strong> Offers modern lifelike spoken audio generation via web APIs for developers.</li>
-  <li>🤖 <strong>ChatGPT Plugin:</strong> Converts text prompts directly inside chat interfaces into downloadable <kbd>MP3</kbd> audio links.</li>
+  <li>🌐 <strong>Web TTS:</strong> Offers spoken audio generation from text.</li>
 </ul>
 </details>
 
 <br>
 
 ### ⚡ <strong>FastReader</strong> <sub><i>RSVP Speed Reading Application</i></sub>
-> **🔗 Repository:** <a href="https://github.com/fastreader" target="_blank">github.com/fastreader</a> | **🏷️ Category:** <code>Accessibility / Productivity</code>
+> **🔗 Repository:** <a href="https://img2vid.github.io/fastreader" target="_blank">img2vid.github.io/fastreader</a> | **🏷️ Category:** <code>Accessibility /Education</code>
 
 A revolutionary speed-reading application that helps users achieve incredible reading velocities. It achieves this by utilizing the <strong>Rapid Serial Visual Presentation (RSVP)</strong> method, eliminating eye-tracking fatigue.
 
@@ -200,7 +159,7 @@ A revolutionary speed-reading application that helps users achieve incredible re
 <br>
 <ul>
   <li>👁️ <strong>RSVP Technology:</strong> Flashes words sequentially at the exact same focal point on the screen.</li>
-  <li>📚 <strong>EPUB Support:</strong> Transforms standard eBooks and text files into focused, high-speed reading experiences.</li>
+  <li>📚 <strong>EPUB Support:</strong> Transforms PDFs, documents and text files into focused, high-speed reading experiences.</li>
   <li>⏲️ <strong>Pacing Control:</strong> Fully adjustable <strong>WPM</strong> (Words Per Minute) settings and word-chunking to suit any reader's comprehension level.</li>
 </ul>
 </details>
