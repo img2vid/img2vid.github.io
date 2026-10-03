@@ -166,45 +166,26 @@ A revolutionary speed-reading application that helps users achieve incredible re
 
 ---
 
-<h2 align="center">💻 <strong>Developer & Data Tools</strong></h2>
+<h2 align="center">💻 <strong>Image Editing Tools</strong></h2>
 
-### 🐘 <strong>pgFormatter</strong> <sub><i>PostgreSQL SQL Syntax Beautifier</i></sub>
-> **🔗 Repository:** <a href="https://github.com/pgformatter" target="_blank">github.com/pgformatter</a> | **🏷️ Category:** <code>Database Tooling</code>
+### 🧬 <strong>ChromatoForge</strong> <sub><i>Online Image Editor</i></sub>
+> **🔗 Repository:** <a href="https://img2vid.github.io/chromatoforge" target="_blank">img2vid.github.io/chromatoforge</a> | **🏷️ Category:** <code>Drawing and Image Editing</code>
 
-The premier SQL and PL/pgSQL syntax beautifier specifically engineered for PostgreSQL databases. It transforms messy, unreadable queries into cleanly indented, standardized code.
-
-<details>
-<summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
-<br>
-<ul>
-  <li>📜 <strong>Standard Compliant:</strong> Fully supports <strong>SQL-92, SQL-99, SQL-2003, SQL-2008, and SQL-2011</strong> keywords.</li>
-  <li>🌐 <strong>Flexible Environments:</strong> Works seamlessly as a CLI console program, a CGI web script, or via VS Code extensions.</li>
-  <li>🎨 <strong>Customizable Rules:</strong> Extensive <code>.pg_format</code> configuration options to match your organization's exact coding standards and obscure literals.</li>
-</ul>
-</details>
-
-<br>
-
-### 🧬 <strong>ChromaForge</strong> <sub><i>Scientific Data Pipeline & Tracker</i></sub>
-> **🔗 Repository:** <a href="https://github.com/chromatoforge" target="_blank">github.com/chromatoforge</a> | **🏷️ Category:** <code>Data Analysis Pipeline</code>
-
-A sophisticated computational pipeline and data forge designed for high-resolution scientific analysis and image processing. Inspired by advanced biological tracking, it is built to process, generate, and quantify complex data structures over time.
+An entirely web-based drawing and image editing tool compatible with all operating systems and device formats.
 
 <details>
 <summary>✨ <strong>Key Features</strong> <i>(Click to expand)</i></summary>
 <br>
 <ul>
-  <li>🔬 <strong>High-Resolution Tracking:</strong> Objective quantification of dynamic data, pixel behaviors, and morphological changes.</li>
-  <li>⚙️ <strong>Data Forge:</strong> Modular pipeline for processing complex computational tasks, matrix generation, and image sequence analysis.</li>
-  <li>📊 <strong>Exportable Metrics:</strong> Outputs clean, structured CSV/JSON data for further statistical analysis in R or Python.</li>
+  <li>📊 <strong>Multi-featured:</strong> Contains all necessary features to perform simple image editing, including special effects such as Blur, Sharpen, Pixelate...</li>
 </ul>
 </details>
 
 ---
 
-<h3 align="center">⭐ <i>Found these tools useful? Don't forget to star the repositories and contribute to the open-source community!</i> ⭐</h3>
+<h3 align="center">⭐ <i>Found these tools useful? Don't forget to star my repository, and to contribute to the open-source community by making use of my code in your own projects if you are a programmer!</i> ⭐</h3>
 
 <p align="center">
-  <b>Made with ❤️ using Markdown & HTML Tags</b><br>
-  <sub><i>Last Updated: October 2026</i></sub>
+  <sub><i>Made by Aishik Dutta</i></sub>
+  <sub><b>Email: </b><a href="mailto:aishikdutta1000@gmail.com">aishikdutta1000@gmail.com</a></sub>
 </p>
