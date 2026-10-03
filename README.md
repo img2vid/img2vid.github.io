@@ -1,22 +1,14 @@
-<h1 align="center">🚀 <strong>Awesome Open-Source Toolkit</strong> 🛠️</h1>
+<h1 align="center">🚀 <strong>Awesome Open-Source Content Creation Toolkit</strong> 🛠️</h1>
 
 <p align="center">
-  <i>A highly curated collection of powerful open-source tools for media production, document processing, AI voice synthesis, and developer productivity.</i>
+  <i>A collection of powerful open-source tools for media production, document processing, AI voice synthesis, and productivity.</i>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Open%20Source-❤-green.svg?style=for-the-badge" alt="Open Source">
 </p>
 
----
-
-## 📑 <strong>Table of Contents</strong>
-1. [🎬 Media & Video Creation](#-media--video-creation)
-2. [📄 Document & File Utilities](#-document--file-utilities)
-3. [🗣️ AI Voice & Accessibility](#-ai-voice--accessibility)
-4. [💻 Developer & Data Tools](#-developer--data-tools)
-
----
+--
 
 <h2 align="center">🎬 <strong>Media & Video Creation</strong></h2>
 
